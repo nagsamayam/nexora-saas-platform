@@ -15,7 +15,7 @@ volumes:
 
 services:
   nginx:
-    image: ${NGINX_IMAGE:-ghcr.io/nagsamayam/laravel-saas/nginx:latest}
+    image: ${NGINX_IMAGE:-ghcr.io/nagsamayam/nexora-saas-platform/nginx:latest}
     container_name: saas-nginx
     restart: unless-stopped
     ports:
