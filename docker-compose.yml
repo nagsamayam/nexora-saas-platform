@@ -36,6 +36,7 @@ services:
       - frontend-net
 
   app:
+    image: ${APP_IMAGE:-ghcr.io/nagsamayam/nexora-saas-platform/app:latest}
     build:
       context: .
       dockerfile: docker/php/Dockerfile
@@ -69,6 +70,7 @@ services:
           memory: 512M
 
   queue-worker:
+    image: ${APP_IMAGE:-ghcr.io/nagsamayam/nexora-saas-platform/app:latest}
     build:
       context: .
       dockerfile: docker/php/Dockerfile
