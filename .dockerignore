@@ -1,0 +1,47 @@
+# Source Control Systems
+.git
+.github
+
+# Heavy Local Build Dependencies (Let Composer/NPM install fresh inside Docker)
+node_modules/
+vendor/
+
+# Optimized Storage Rules
+# Clears volatile logs and application states while preserving directory structures
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+!storage/framework/cache/.gitignore
+!storage/framework/sessions/.gitignore
+!storage/framework/views/.gitignore
+
+# Framework Bootstrap Cache Rules
+# Excludes compiled application framework configs but preserves the structural directory
+bootstrap/cache/*
+!bootstrap/cache/.gitignore
+
+# Enterprise Config Overrides & Local Environment Infrastructure files
+.env
+.env.*
+docker-compose.yml
+docker/php/dev-overrides.ini
+
+# Testing & Coverage Artifacts
+# Note: Keep the 'tests/' folder included so PHPStan/Pest can execute inside the container!
+coverage/
+
+# Opinionated Editor & Operating System Caches
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.DS_Store
+Thumbs.db
+
+# Frontend Log Dumps
+npm-debug.log*
+yarn-error.log*

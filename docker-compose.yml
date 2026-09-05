@@ -1,0 +1,306 @@
+networks:
+  backend-net:
+    driver: bridge
+    internal: true
+  frontend-net:
+    driver: bridge
+    internal: false
+
+volumes:
+  postgres_master_data:
+  postgres_replica_data:
+  cloudbeaver_workspace:
+  redis_data:
+  rabbitmq_data:
+
+services:
+  nginx:
+    image: ${NGINX_IMAGE:-ghcr.io/nagsamayam/laravel-saas/nginx:latest}
+    container_name: saas-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    # Use locally to allow rebuilding from source files instantly
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    volumes:
+      - ./:/var/www/html
+      # Edge Case: Allow local nginx config overrides without rebuilding the image
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - backend-net
+      - frontend-net
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: saas-app
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www/html
+      - ./docker/php/zzz-dev.ini:/usr/local/etc/php/conf.d/zzz-dev.ini
+    environment:
+      DB_HOST: pg_master
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      pg_master:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep php-fpm | grep -v grep"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  queue-worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: saas-queue-worker
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www/html
+      - ./docker/php/zzz-dev.ini:/usr/local/etc/php/conf.d/zzz-dev.ini
+    environment:
+      LARAVEL_DEFAULT_QUEUE: ${RABBITMQ_QUEUE:-default}
+      LARAVEL_QUEUE_COMMAND: ${LARAVEL_QUEUE_COMMAND:-listen}
+    command: >
+      sh -c "until nc -z -v -w3 rabbitmq 5672; do
+               echo 'Waiting for RabbitMQ broker to accept traffic...';
+               sleep 3;
+             done;
+             echo 'RabbitMQ is online! Booting Laravel asynchronous worker...';
+             php artisan queue:$${LARAVEL_QUEUE_COMMAND} rabbitmq --queue=$${LARAVEL_DEFAULT_QUEUE} --tries=3"
+    depends_on:
+      pg_master:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan queue:monitor rabbitmq:default"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  redis:
+    image: redis:8-alpine
+    container_name: saas-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    environment:
+      # This injects your .env value into the container's environment
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    # FIX: Instructs Redis to boot using its environment variable directly
+    command: sh -c 'redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: saas-rabbitmq
+    restart: unless-stopped
+    expose:
+      - 5672
+      - 15672
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  pg_bouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: saas-pg-bouncer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6432:6432"
+    environment:
+      - DB_HOST=pg_master
+      - DB_PORT=5432
+      - DB_USER=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_NAME=${DB_DATABASE:-laravel_prod}
+      - LISTEN_PORT=6432
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=1000
+      - DEFAULT_POOL_SIZE=20
+      - ADMIN_USERS=${DB_USERNAME:-postgres}
+      - TRACK_EXTRA_FLOAT_DIGITS=1
+      - AUTH_TYPE=scram-sha-256
+    networks:
+      - backend-net
+    depends_on:
+      pg_master:
+        condition: service_healthy
+
+  pg_master:
+    image: postgres:18-alpine
+    container_name: saas-pg-master
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-laravel_prod}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_REPLICATION_USER: ${POSTGRES_REPLICATION_USER:-replicator}
+      POSTGRES_REPLICATION_PASSWORD: ${POSTGRES_REPLICATION_PASSWORD:?POSTGRES_REPLICATION_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command: >
+      postgres
+      -c wal_level=replica
+      -c max_wal_senders=5
+      -c max_replication_slots=5
+      -c hot_standby=on
+    volumes:
+      - postgres_master_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-replication.sh:/docker-entrypoint-initdb.d/init-replication.sh
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  pg_replica:
+    image: postgres:18-alpine
+    container_name: saas-pg-replica
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      PGUSER: ${POSTGRES_REPLICATION_USER:-replicator}
+      PGPASSWORD: ${POSTGRES_REPLICATION_PASSWORD:?POSTGRES_REPLICATION_PASSWORD is required}
+      PGHOST: pg_master
+      POSTGRES_DB: ${DB_DATABASE:-laravel_prod}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    entrypoint: >
+      bash -c "
+      set -e
+
+      if [ -s \"$$PGDATA/PG_VERSION\" ]; then
+        echo 'Data directory already synced. Booting up standby node...'
+      else
+        echo 'Data directory empty or uninitialized. Preparing syncing parameters...'
+        rm -rf \"$$PGDATA\"/*
+
+        until pg_isready -h pg_master -p 5432 -U $$PGUSER -d replication; do
+          echo 'Waiting for pg_master replication channel to accept traffic...';
+          sleep 2;
+        done;
+        echo 'Master is up! Syncing base backup...';
+
+        pg_basebackup -h pg_master -D \"$$PGDATA\" -U \"$$PGUSER\" -vP -Fp -Xs -R --slot=laravel_replica_slot;
+        echo 'Sync complete!';
+      fi
+
+      exec docker-entrypoint.sh postgres -c hot_standby=on
+      "
+    depends_on:
+      pg_master:
+        condition: service_healthy
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$PGUSER -d replication"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: saas-cloudbeaver
+    restart: unless-stopped
+    environment:
+      CLOUDBEAVER_ROOT_URI: /cloudbeaver/
+    volumes:
+      - cloudbeaver_workspace:/opt/cloudbeaver/workspace
+    networks:
+      - backend-net
+    depends_on:
+      pg_master:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1:8978/cloudbeaver/ || exit 1"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
