@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Http\Controllers\HealthController;
+use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/health', HealthController::class)
+    ->name('health');
+
+Route::post('/v1/register', [UserController::class, 'register']);
