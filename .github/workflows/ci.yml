@@ -18,19 +18,22 @@ jobs:
     env:
       APP_KEY: base64:rMEtTQWRHiPU8es+BE5TrmwrvWsUTVnl5ndnB1cDOIk=
       APP_ENV: testing
+      DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: 5432
       DB_WRITE_HOST: 127.0.0.1
       DB_WRITE_PORT: 5432
       DB_REPLICA_HOST: 127.0.0.1
       DB_REPLICA_PORT: 5432
-      DB_DATABASE: nexora
+      DB_DATABASE: nexora_test
       DB_USERNAME: saas
-      DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+      DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'secret' }}
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
 
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18-alpine
         env:
           POSTGRES_DB: ${{ env.DB_DATABASE }}
           POSTGRES_USER: ${{ env.DB_USERNAME }}
@@ -38,7 +41,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U saas -d saas_platform_test"
+          --health-cmd="pg_isready -U saas -d nexora_test"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
@@ -52,15 +55,6 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=5
-          --name=test_redis_service
-          --ipc=host
-        command: >-
-          redis-server 
-          --save "" 
-          --appendonly no 
-          --loglevel warning 
-          --maxmemory 512mb 
-          --maxmemory-policy allkeys-lru
 
     strategy:
       fail-fast: false
@@ -76,8 +70,9 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_pgsql, redis
+          extensions: pdo_pgsql, redis, bcmath, mbstring, intl, zip, sockets
           coverage: none
+          tools: composer:v2
 
       - name: Validate Composer Configuration
         run: composer validate --strict
@@ -91,13 +86,15 @@ jobs:
             composer-${{ runner.os }}-
 
       - name: Install Project Dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+        run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Prepare Environment Variables
-        run: cp .env.example .env
+      - name: Prepare Test Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --env=testing
 
       - name: Run Database Migrations
         run: php artisan migrate --force
 
-      - name: Run Code-Shield
+      - name: Run Code Quality Checks & Tests
         run: composer code-shield
