@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Shared\Infrastructure\Http\Responses;
+namespace App\Http\Responses;
 
-use App\Modules\Shared\Infrastructure\Http\Middleware\RequestCorrelationMiddleware;
+use App\Http\Middleware\RequestCorrelationMiddleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Modules\Shared\Infrastructure\Http\Controllers;
+namespace App\Http\Controllers\Health;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Shared\Infrastructure\Http\Responses\ApiResponse;
+use App\Http\Responses\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;

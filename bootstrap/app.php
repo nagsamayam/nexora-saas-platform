@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Modules\Shared\Infrastructure\Http\Middleware\RequestCorrelationMiddleware;
-use App\Modules\Shared\Infrastructure\Http\Responses\ApiResponse;
+use App\Http\Middleware\AuthenticateJwt;
+use App\Http\Middleware\RequestCorrelationMiddleware;
+use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             RequestCorrelationMiddleware::class,
         ]);
+        $middleware->alias([
+            'auth.jwt' => AuthenticateJwt::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -40,9 +44,18 @@ return Application::configure(basePath: dirname(__DIR__))
                 return $e->getResponse();
             }
 
+            if ($e instanceof App\Domain\Auth\Exceptions\AuthenticationException) {
+                return ApiResponse::error(
+                    code: $e->getErrorCode(),
+                    message: $e->getMessage(),
+                    details: $e->getDetails(),
+                    status: $e->getStatusCode(),
+                );
+            }
+
             if ($e instanceof ValidationException) {
                 return ApiResponse::error(
-                    code: 'VALIDATION_FAILED',
+                    code: 'VALIDATION_ERROR',
                     message: $e->getMessage(),
                     details: $e->errors(),
                     status: Response::HTTP_UNPROCESSABLE_ENTITY,
@@ -51,7 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             if ($e instanceof AuthenticationException) {
                 return ApiResponse::error(
-                    code: 'UNAUTHENTICATED',
+                    code: 'AUTH_UNAUTHORIZED',
                     message: $e->getMessage() ?: 'Unauthenticated.',
                     status: Response::HTTP_UNAUTHORIZED,
                 );

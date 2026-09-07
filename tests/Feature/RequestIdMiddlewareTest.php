@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use App\Modules\Shared\Infrastructure\Http\Middleware\RequestCorrelationMiddleware;
+use App\Http\Middleware\RequestCorrelationMiddleware;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 test('request generates request ID, correlation ID, and causation ID when absent', function () {
-    $response = $this->getJson('/api/v1/health/live');
+    $response = $this->getJson('/api/health/live');
 
     $response->assertOk();
 
@@ -36,7 +36,7 @@ test('request preserves provided correlation ID and causation ID', function () {
         RequestCorrelationMiddleware::REQUEST_ID_HEADER => $customRequestId,
         RequestCorrelationMiddleware::CORRELATION_ID_HEADER => $customCorrelationId,
         RequestCorrelationMiddleware::CAUSATION_ID_HEADER => $customCausationId,
-    ])->getJson('/api/v1/health/live');
+    ])->getJson('/api/health/live');
 
     $response->assertOk()
         ->assertHeader(RequestCorrelationMiddleware::REQUEST_ID_HEADER, $customRequestId)
@@ -52,7 +52,7 @@ test('request preserves provided correlation ID and causation ID', function () {
 test('request logs structured message with correlation context', function () {
     Log::spy();
 
-    $response = $this->getJson('/api/v1/health/live');
+    $response = $this->getJson('/api/health/live');
     $response->assertOk();
 
     $requestId = $response->headers->get(RequestCorrelationMiddleware::REQUEST_ID_HEADER);
@@ -61,7 +61,7 @@ test('request logs structured message with correlation context', function () {
         'HTTP request processed',
         Mockery::on(function (array $context) {
             return $context['method'] === 'GET'
-                && $context['uri'] === '/api/v1/health/live'
+                && $context['uri'] === '/api/health/live'
                 && $context['status'] === 200
                 && is_float($context['duration_ms'])
                 && array_key_exists('ip', $context)
