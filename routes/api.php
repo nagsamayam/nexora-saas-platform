@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AdminAuthController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Health\LiveHealthController;
 use App\Http\Controllers\Health\ReadyHealthController;
@@ -30,6 +31,16 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/logout', [AuthController::class, 'logout'])->name('api.v1.auth.logout');
             Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('api.v1.auth.logout-all');
             Route::get('/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
+
+            // Session Management
+            Route::get('/sessions', [AuthController::class, 'sessions'])->name('api.v1.auth.sessions.index');
+            Route::delete('/sessions/{session}', [AuthController::class, 'revokeSession'])->name('api.v1.auth.sessions.revoke');
         });
+    });
+
+    // Admin Routes
+    Route::prefix('admin')->middleware('auth.jwt')->group(function (): void {
+        Route::post('/users/{user}/revoke-sessions', [AdminAuthController::class, 'revokeUserSessions'])
+            ->name('api.v1.admin.users.revoke-sessions');
     });
 });
