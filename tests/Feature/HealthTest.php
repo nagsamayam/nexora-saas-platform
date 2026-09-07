@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 test('live health endpoint returns HTTP 200 with alive status', function () {
-    $response = $this->getJson('/api/v1/health/live');
+    $response = $this->getJson('/api/health/live');
 
     $response->assertOk()
         ->assertJsonStructure([
@@ -25,7 +25,7 @@ test('live health endpoint returns HTTP 200 with alive status', function () {
 });
 
 test('ready health endpoint returns valid structure', function () {
-    $response = $this->getJson('/api/v1/health/ready');
+    $response = $this->getJson('/api/health/ready');
 
     $response->assertJsonStructure([
         'success',

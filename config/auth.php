@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Models\User;
 
 return [
@@ -113,5 +115,16 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication Rate Limiting
+    |--------------------------------------------------------------------------
+    */
+    'rate_limiting' => [
+        'register' => (int) env('AUTH_RATE_LIMIT_REGISTER', 5),
+        'login' => (int) env('AUTH_RATE_LIMIT_LOGIN', 10),
+        'refresh' => (int) env('AUTH_RATE_LIMIT_REFRESH', 20),
+    ],
 
 ];
