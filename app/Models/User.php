@@ -6,12 +6,18 @@ namespace App\Models;
 
 use App\Domain\Auth\Enums\UserStatus;
 use App\Domain\Auth\Models\AuthSession;
+use App\Domain\Identity\Enums\PlatformRole as PlatformRoleEnum;
+use App\Domain\Identity\Models\PlatformRole;
+use App\Domain\Identity\Models\UserPlatformRole;
+use App\Domain\Shared\Traits\HasRowVersion;
+use App\Domain\Tenancy\Models\TenantMembership;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -53,7 +59,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasUuids, Notifiable, SoftDeletes;
+    use HasFactory, HasRowVersion, HasUuids, Notifiable, SoftDeletes;
 
     /**
      * @var string
@@ -84,6 +90,36 @@ class User extends Authenticatable
     public function authSessions(): HasMany
     {
         return $this->hasMany(AuthSession::class, 'user_id');
+    }
+
+    /**
+     * @return BelongsToMany<PlatformRole, $this, UserPlatformRole>
+     */
+    public function platformRoles(): BelongsToMany
+    {
+        return $this->belongsToMany(PlatformRole::class, 'user_platform_roles', 'user_id', 'platform_role_id')
+            ->using(UserPlatformRole::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<TenantMembership, $this>
+     */
+    public function tenantMemberships(): HasMany
+    {
+        return $this->hasMany(TenantMembership::class, 'user_id');
+    }
+
+    public function hasPlatformRole(PlatformRoleEnum|string $role): bool
+    {
+        $roleName = $role instanceof PlatformRoleEnum ? $role->value : $role;
+
+        return $this->platformRoles()->where('name', $roleName)->exists();
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasPlatformRole(PlatformRoleEnum::SuperAdmin);
     }
 
     /**
