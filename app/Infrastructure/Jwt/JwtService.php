@@ -237,8 +237,9 @@ class JwtService
             throw new RuntimeException('JWT private key is not configured.');
         }
 
-        $keyContent = file_exists($keyPathOrContent)
-            ? (string) file_get_contents($keyPathOrContent)
+        $resolvedPath = $this->resolveKeyPath($keyPathOrContent);
+        $keyContent = file_exists($resolvedPath)
+            ? (string) file_get_contents($resolvedPath)
             : $keyPathOrContent;
 
         $key = openssl_pkey_get_private($keyContent, $passphrase ?? '');
@@ -258,8 +259,9 @@ class JwtService
             throw new RuntimeException('JWT public key is not configured.');
         }
 
-        $keyContent = file_exists($keyPathOrContent)
-            ? (string) file_get_contents($keyPathOrContent)
+        $resolvedPath = $this->resolveKeyPath($keyPathOrContent);
+        $keyContent = file_exists($resolvedPath)
+            ? (string) file_get_contents($resolvedPath)
             : $keyPathOrContent;
 
         $key = openssl_pkey_get_public($keyContent);
@@ -268,6 +270,20 @@ class JwtService
         }
 
         return $key;
+    }
+
+    private function resolveKeyPath(string $keyPathOrContent): string
+    {
+        if (str_starts_with($keyPathOrContent, 'file://')) {
+            $path = substr($keyPathOrContent, 7);
+            if (! str_starts_with($path, '/') && ! preg_match('/^[A-Za-z]:\\\\/', $path)) {
+                return base_path($path);
+            }
+
+            return $path;
+        }
+
+        return $keyPathOrContent;
     }
 
     public function base64UrlEncode(string $data): string

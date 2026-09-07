@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace App\Application\Auth;
 
+use App\Domain\Audit\Enums\AuditEventType;
 use App\Domain\Auth\DTOs\RegisterUserDTO;
 use App\Domain\Auth\Enums\UserStatus;
 use App\Domain\Auth\Exceptions\DuplicateEmailException;
+use App\Domain\Outbox\Enums\OutboxEventType;
+use App\Infrastructure\Audit\AuditService;
+use App\Infrastructure\Outbox\OutboxService;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +18,11 @@ use Illuminate\Support\Str;
 
 class RegisterUserService
 {
+    public function __construct(
+        protected OutboxService $outboxService,
+        protected AuditService $auditService,
+    ) {}
+
     /**
      * Register a new user inside a transaction.
      */
@@ -48,6 +57,29 @@ class RegisterUserService
                 'auth_version' => 0,
                 'row_version' => 1,
             ]);
+
+            // Persist transactional outbox event
+            $this->outboxService->record(
+                eventType: OutboxEventType::UserRegistered,
+                aggregateType: 'User',
+                aggregateId: (string) $user->id,
+                payload: [
+                    'user_id' => (string) $user->id,
+                    'name' => (string) ($user->name ?? ($user->first_name ?? 'User')),
+                    'email' => (string) $user->email,
+                ],
+                eventKey: sprintf('user-registered-%s', $user->id),
+            );
+
+            // Record audit event
+            $this->auditService->record(
+                eventType: AuditEventType::UserRegistered,
+                userId: (string) $user->id,
+                metadata: [
+                    'email' => (string) $user->email,
+                    'status' => $user->status->value,
+                ],
+            );
 
             return $user;
         });

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Application\Auth;
 
+use App\Domain\Audit\Enums\AuditEventType;
 use App\Domain\Auth\Enums\RefreshTokenStatus;
 use App\Domain\Auth\Enums\SessionStatus;
 use App\Domain\Auth\Models\AuthRefreshToken;
 use App\Domain\Auth\Models\AuthSession;
+use App\Infrastructure\Audit\AuditService;
 use App\Infrastructure\Jwt\JwtService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +18,7 @@ class LogoutUserService
 {
     public function __construct(
         protected JwtService $jwtService,
+        protected AuditService $auditService,
     ) {}
 
     /**
@@ -31,6 +34,7 @@ class LogoutUserService
         }
 
         $sid = $sessionId ?? ($payload['sid'] ?? null);
+        $userId = $payload['sub'] ?? null;
 
         if ($sid) {
             $now = CarbonImmutable::now('UTC');
@@ -48,6 +52,12 @@ class LogoutUserService
                         'revoked_at' => $now,
                     ]);
             });
+
+            $this->auditService->record(
+                eventType: AuditEventType::UserLoggedOut,
+                userId: is_string($userId) ? $userId : null,
+                sessionId: $sid,
+            );
         }
 
         // Invalidate JWT token in blacklist

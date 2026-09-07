@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Application\Auth;
 
+use App\Domain\Audit\Enums\AuditEventType;
 use App\Domain\Auth\Enums\RefreshTokenStatus;
 use App\Domain\Auth\Enums\SessionStatus;
 use App\Domain\Auth\Models\AuthRefreshToken;
 use App\Domain\Auth\Models\AuthSession;
+use App\Infrastructure\Audit\AuditService;
 use App\Infrastructure\Jwt\JwtService;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -17,6 +19,7 @@ class LogoutAllUserService
 {
     public function __construct(
         protected JwtService $jwtService,
+        protected AuditService $auditService,
     ) {}
 
     /**
@@ -47,6 +50,15 @@ class LogoutAllUserService
 
             // Increment auth_version to immediately invalidate all existing JWT access tokens
             $user->increment('auth_version');
+
+            $this->auditService->record(
+                eventType: AuditEventType::UserSessionsRevoked,
+                userId: (string) $user->id,
+                metadata: [
+                    'revoked_session_count' => $sessionIds->count(),
+                    'new_auth_version' => $user->auth_version,
+                ],
+            );
         });
 
         if ($rawToken !== null) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Auth;
 
+use App\Domain\Audit\Enums\AuditEventType;
 use App\Domain\Auth\DTOs\AuthTokenResultDTO;
 use App\Domain\Auth\Enums\RefreshTokenStatus;
 use App\Domain\Auth\Enums\SessionStatus;
@@ -14,6 +15,7 @@ use App\Domain\Auth\Exceptions\SessionRevokedException;
 use App\Domain\Auth\Exceptions\UserInactiveException;
 use App\Domain\Auth\Models\AuthRefreshToken;
 use App\Domain\Auth\Models\AuthSession;
+use App\Infrastructure\Audit\AuditService;
 use App\Infrastructure\Jwt\JwtService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +24,7 @@ class RefreshTokenService
 {
     public function __construct(
         protected JwtService $jwtService,
+        protected AuditService $auditService,
     ) {}
 
     /**
@@ -32,9 +35,10 @@ class RefreshTokenService
         $tokenHash = hash('sha256', $rawRefreshToken);
         $reuseDetected = false;
         $reuseSessionId = null;
+        $reuseUserId = null;
 
         try {
-            return DB::transaction(function () use ($tokenHash, &$reuseDetected, &$reuseSessionId): AuthTokenResultDTO {
+            return DB::transaction(function () use ($tokenHash, &$reuseDetected, &$reuseSessionId, &$reuseUserId): AuthTokenResultDTO {
                 $now = CarbonImmutable::now('UTC');
 
                 /** @var AuthRefreshToken|null $tokenRecord */
@@ -50,6 +54,7 @@ class RefreshTokenService
                 if ($tokenRecord->status === RefreshTokenStatus::Consumed) {
                     $reuseDetected = true;
                     $reuseSessionId = $tokenRecord->session_id;
+                    $reuseUserId = (string) $tokenRecord->session->user_id;
 
                     throw new RefreshTokenReuseException;
                 }
@@ -101,6 +106,17 @@ class RefreshTokenService
                     'last_used_at' => $now,
                 ]);
 
+                // Record audit event
+                $this->auditService->record(
+                    eventType: AuditEventType::RefreshTokenRotated,
+                    userId: (string) $user->id,
+                    sessionId: (string) $session->id,
+                    metadata: [
+                        'old_token_id' => $tokenRecord->id,
+                        'new_token_id' => $newTokenRecord->id,
+                    ],
+                );
+
                 $accessToken = $this->jwtService->issueAccessToken($user, (string) $session->id);
 
                 /** @var int $ttl */
@@ -127,6 +143,16 @@ class RefreshTokenService
                         'status' => RefreshTokenStatus::Revoked,
                         'revoked_at' => $now,
                     ]);
+
+                // Record audit event for security incident
+                $this->auditService->record(
+                    eventType: AuditEventType::RefreshTokenReuseDetected,
+                    userId: $reuseUserId,
+                    sessionId: $reuseSessionId,
+                    metadata: [
+                        'token_hash' => substr($tokenHash, 0, 8).'...',
+                    ],
+                );
             }
 
             throw $e;

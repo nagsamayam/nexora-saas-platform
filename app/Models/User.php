@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Domain\Auth\Enums\UserStatus;
 use App\Domain\Auth\Models\AuthSession;
+use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -15,7 +16,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -28,12 +28,12 @@ use Illuminate\Support\Carbon;
  * @property UserStatus $status
  * @property int $auth_version
  * @property int $row_version
- * @property Carbon|null $email_verified_at
- * @property Carbon|null $last_login_at
- * @property Carbon|null $password_changed_at
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
- * @property Carbon|null $deleted_at
+ * @property CarbonImmutable|null $email_verified_at
+ * @property CarbonImmutable|null $last_login_at
+ * @property CarbonImmutable|null $password_changed_at
+ * @property CarbonImmutable|null $created_at
+ * @property CarbonImmutable|null $updated_at
+ * @property CarbonImmutable|null $deleted_at
  */
 #[Fillable([
     'name',
@@ -92,14 +92,14 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'last_login_at' => 'datetime',
-            'password_changed_at' => 'datetime',
+            'email_verified_at' => 'immutable_datetime',
+            'last_login_at' => 'immutable_datetime',
+            'password_changed_at' => 'immutable_datetime',
             'password_hash' => 'hashed',
             'status' => UserStatus::class,
             'auth_version' => 'integer',
             'row_version' => 'integer',
-            'deleted_at' => 'datetime',
+            'deleted_at' => 'immutable_datetime',
         ];
     }
 }

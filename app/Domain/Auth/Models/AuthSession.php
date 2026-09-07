@@ -6,13 +6,13 @@ namespace App\Domain\Auth\Models;
 
 use App\Domain\Auth\Enums\SessionStatus;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -21,12 +21,12 @@ use Illuminate\Support\Carbon;
  * @property string|null $device_name
  * @property string|null $ip_address
  * @property string|null $user_agent
- * @property Carbon|null $last_used_at
- * @property Carbon $expires_at
- * @property Carbon|null $revoked_at
+ * @property CarbonImmutable|null $last_used_at
+ * @property CarbonImmutable $expires_at
+ * @property CarbonImmutable|null $revoked_at
  * @property string|null $revoked_by
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
+ * @property CarbonImmutable|null $created_at
+ * @property CarbonImmutable|null $updated_at
  * @property User $user
  */
 #[Fillable([
@@ -82,9 +82,9 @@ class AuthSession extends Model
     {
         return [
             'status' => SessionStatus::class,
-            'last_used_at' => 'datetime',
-            'expires_at' => 'datetime',
-            'revoked_at' => 'datetime',
+            'last_used_at' => 'immutable_datetime',
+            'expires_at' => 'immutable_datetime',
+            'revoked_at' => 'immutable_datetime',
         ];
     }
 }
