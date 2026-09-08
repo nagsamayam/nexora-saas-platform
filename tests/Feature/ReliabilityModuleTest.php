@@ -111,6 +111,7 @@ test('user login persists outbox event and audit log', function () {
         ->first();
 
     expect($outbox)->not->toBeNull()
+        ->and($outbox->event_key)->toBe(sprintf('user-logged-in-%s', $outbox->headers['session_id']))
         ->and($outbox->payload['email'])->toBe('login.test@example.com')
         ->and($outbox->payload['device_name'])->toBe('MacBook Pro Safari')
         ->and($outbox->headers['session_id'])->toBeString();
