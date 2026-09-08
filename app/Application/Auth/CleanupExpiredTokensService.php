@@ -37,7 +37,7 @@ class CleanupExpiredTokensService
     {
         $pruneDays = $options['prune_days'] ?? 30;
         $dryRun = $options['dry_run'] ?? false;
-        $now = CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
         $pruneThreshold = $now->subDays($pruneDays);
 
         BlameContext::setActorId(BlameContext::SYSTEM_ACTOR_ID);

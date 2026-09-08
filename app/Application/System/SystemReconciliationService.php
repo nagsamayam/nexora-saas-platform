@@ -46,7 +46,7 @@ class SystemReconciliationService
         $autoRecoverTenants = $options['auto_recover_tenants'] ?? true;
         $dryRun = $options['dry_run'] ?? false;
 
-        $now = CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
         $provisioningThreshold = $now->subMinutes($stuckProvisioningMinutes);
 
         BlameContext::setActorId(BlameContext::SYSTEM_ACTOR_ID);

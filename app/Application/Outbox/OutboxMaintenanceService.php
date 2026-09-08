@@ -38,7 +38,7 @@ class OutboxMaintenanceService
         $failedDays = $options['failed_retention_days'] ?? 30;
         $dryRun = $options['dry_run'] ?? false;
 
-        $now = CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
         $publishedThreshold = $now->subDays($publishedDays);
         $failedThreshold = $now->subDays($failedDays);
 
@@ -120,7 +120,7 @@ class OutboxMaintenanceService
         $stuckMinutes = $options['stuck_minutes'] ?? 10;
         $dryRun = $options['dry_run'] ?? false;
 
-        $now = CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
         $stuckThreshold = $now->subMinutes($stuckMinutes);
 
         BlameContext::setActorId(BlameContext::SYSTEM_ACTOR_ID);

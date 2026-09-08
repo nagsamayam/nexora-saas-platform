@@ -72,7 +72,7 @@ class LoginUserService
         }
 
         return DB::transaction(function () use ($user, $dto): AuthTokenResultDTO {
-            $now = CarbonImmutable::now('UTC');
+            $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
             $sessionExpiresAt = $now->addDays(30);
 
             /** @var AuthSession $session */

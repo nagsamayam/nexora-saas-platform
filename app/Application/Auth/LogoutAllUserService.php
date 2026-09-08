@@ -27,7 +27,7 @@ class LogoutAllUserService
      */
     public function logoutAll(User $user, ?string $rawToken = null): void
     {
-        $now = CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
         DB::transaction(function () use ($user, $now): void {
             $sessionIds = AuthSession::where('user_id', $user->id)

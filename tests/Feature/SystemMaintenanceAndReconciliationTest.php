@@ -30,7 +30,7 @@ use Illuminate\Support\Str;
 uses(RefreshDatabase::class);
 
 test('auth:cleanup-tokens expires past-due tokens and sessions and prunes old records', function () {
-    $now = CarbonImmutable::now('UTC');
+    $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
     $user = User::factory()->create(['status' => UserStatus::Active]);
 
@@ -137,7 +137,7 @@ test('auth:cleanup-tokens expires past-due tokens and sessions and prunes old re
 });
 
 test('outbox:prune prunes old published and dead-letter messages', function () {
-    $now = CarbonImmutable::now('UTC');
+    $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
     // Old published message (> 7 days)
     $oldPublished = OutboxMessage::create([
@@ -210,7 +210,7 @@ test('outbox:prune prunes old published and dead-letter messages', function () {
 });
 
 test('outbox:reap recovers stuck publishing messages back to pending', function () {
-    $now = CarbonImmutable::now('UTC');
+    $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
     // Stuck in publishing for 20 minutes (e.g. killed worker)
     $stuckMessage = OutboxMessage::create([
@@ -267,7 +267,7 @@ test('outbox:reap recovers stuck publishing messages back to pending', function 
 test('system:reconcile synchronizes tokens, deactivated users, and recovers stuck tenants', function () {
     Queue::fake();
 
-    $now = CarbonImmutable::now('UTC');
+    $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
     // 1. Inconsistent token: session revoked but token still active
     $user1 = User::factory()->create(['status' => UserStatus::Active]);
