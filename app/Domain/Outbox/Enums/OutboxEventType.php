@@ -8,4 +8,7 @@ enum OutboxEventType: string
 {
     case UserRegistered = 'UserRegistered';
     case UserLoggedIn = 'UserLoggedIn';
+    case TenantCreated = 'TenantCreated';
+    case TenantApproved = 'TenantApproved';
+    case TenantProvisioned = 'TenantProvisioned';
 }

@@ -28,3 +28,11 @@ Security tests
 ADRs
 Multi-tenant integration
 
+Milestone 4 — Multi-Tenant Architecture & Onboarding
+
+Tenant onboarding API (`/api/v1/tenants/onboard`)
+Owner membership provisioning
+Slug uniqueness & collision resolution
+Tenant lifecycle transactional outbox messaging
+Audit logging for tenant creation
+

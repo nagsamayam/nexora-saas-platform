@@ -13,4 +13,9 @@ enum AuditEventType: string
     case RefreshTokenRotated = 'RefreshTokenRotated';
     case RefreshTokenReuseDetected = 'RefreshTokenReuseDetected';
     case LoginFailed = 'LoginFailed';
+    case TenantCreated = 'TenantCreated';
+    case TenantMemberAdded = 'TenantMemberAdded';
+    case TenantApproved = 'TenantApproved';
+    case TenantProvisioningStarted = 'TenantProvisioningStarted';
+    case TenantProvisioned = 'TenantProvisioned';
 }
