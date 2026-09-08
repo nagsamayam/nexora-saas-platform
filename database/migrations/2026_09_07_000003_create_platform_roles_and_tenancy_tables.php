@@ -36,7 +36,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('name', 150);
             $table->string('slug', 100);
-            $table->string('status', 32)->default('active');
+            $table->string('status', 32)->default('pending');
             $table->unsignedBigInteger('row_version')->default(1);
             $table->timestampTz('created_at')->useCurrent();
             $table->timestampTz('updated_at')->useCurrent();
@@ -46,7 +46,7 @@ return new class extends Migration
         DB::statement("
             ALTER TABLE tenants
             ADD CONSTRAINT tenants_status_check
-            CHECK (status IN ('provisioning', 'active', 'suspended', 'disabled'))
+            CHECK (status IN ('pending', 'provisioning', 'active', 'suspended', 'disabled'))
         ");
 
         DB::statement('

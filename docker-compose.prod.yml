@@ -185,7 +185,7 @@ services:
       - DB_PORT=5432
       - DB_USER=${DB_USERNAME:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
-      - DB_NAME=${DB_DATABASE:-laravel_prod}
+      - DB_NAME=${DB_DATABASE:-nexora}
       - LISTEN_PORT=6432
       - POOL_MODE=transaction
       - MAX_CLIENT_CONN=1000
@@ -209,7 +209,7 @@ services:
     container_name: saas-pg-master-prod
     restart: always
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-laravel_prod}
+      POSTGRES_DB: ${DB_DATABASE:-nexora}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       POSTGRES_REPLICATION_USER: ${POSTGRES_REPLICATION_USER:-replicator}
@@ -252,7 +252,7 @@ services:
       PGUSER: ${POSTGRES_REPLICATION_USER:-replicator}
       PGPASSWORD: ${POSTGRES_REPLICATION_PASSWORD:?POSTGRES_REPLICATION_PASSWORD is required}
       PGHOST: pg_master
-      POSTGRES_DB: ${DB_DATABASE:-laravel_prod}
+      POSTGRES_DB: ${DB_DATABASE:-nexora}
       PGDATA: /var/lib/postgresql/data/pgdata
     entrypoint: >
       bash -c "

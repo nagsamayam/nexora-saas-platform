@@ -9,6 +9,8 @@ use App\Domain\Outbox\Enums\OutboxStatus;
 use App\Domain\Outbox\Models\OutboxMessage;
 use App\Jobs\Auth\SendLoginNotificationEmailJob;
 use App\Jobs\Auth\SendRegistrationEmailJob;
+use App\Jobs\Tenancy\SendTenantApprovedEmailJob;
+use App\Jobs\Tenancy\SendTenantProvisionedEmailJob;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -133,6 +135,24 @@ class PublishOutboxMessagesCommand extends Command
             );
         } elseif ($eventType === OutboxEventType::UserLoggedIn->value) {
             SendLoginNotificationEmailJob::dispatch(
+                eventId: $eventId,
+                eventType: $eventType,
+                aggregateId: $aggregateId,
+                payload: $payload,
+                headers: $headers,
+                idempotencyKey: $message->event_key,
+            );
+        } elseif ($eventType === OutboxEventType::TenantApproved->value) {
+            SendTenantApprovedEmailJob::dispatch(
+                eventId: $eventId,
+                eventType: $eventType,
+                aggregateId: $aggregateId,
+                payload: $payload,
+                headers: $headers,
+                idempotencyKey: $message->event_key,
+            );
+        } elseif ($eventType === OutboxEventType::TenantProvisioned->value) {
+            SendTenantProvisionedEmailJob::dispatch(
                 eventId: $eventId,
                 eventType: $eventType,
                 aggregateId: $aggregateId,

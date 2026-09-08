@@ -30,6 +30,20 @@ final class ApiResponse
     }
 
     /**
+     * Return a standardized 201 Created JSON response.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public static function created(mixed $data = null, ?string $message = null, array $meta = []): JsonResponse
+    {
+        if ($message !== null) {
+            $meta = array_merge(['message' => $message], $meta);
+        }
+
+        return self::success($data, Response::HTTP_CREATED, $meta);
+    }
+
+    /**
      * Return a standardized error JSON response.
      *
      * @param  array<string, mixed>  $meta

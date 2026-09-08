@@ -115,6 +115,7 @@ class LoginUserService
                 headers: [
                     'session_id' => (string) $session->id,
                 ],
+                eventKey: sprintf('user-logged-in-%s', $session->id),
             );
 
             // Record audit log

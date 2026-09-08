@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AdminAuthController;
+use App\Http\Controllers\Api\V1\Admin\AdminTenantController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\TenantController;
 use App\Http\Controllers\Health\LiveHealthController;
 use App\Http\Controllers\Health\ReadyHealthController;
 use Illuminate\Support\Facades\Route;
@@ -38,9 +40,18 @@ Route::prefix('v1')->group(function (): void {
         });
     });
 
+    // Tenancy Routes
+    Route::prefix('tenants')->middleware('auth.jwt')->group(function (): void {
+        Route::post('/onboard', [TenantController::class, 'onboard'])
+            ->name('api.v1.tenants.onboard');
+    });
+
     // Admin Routes
     Route::prefix('admin')->middleware('auth.jwt')->group(function (): void {
         Route::post('/users/{user}/revoke-sessions', [AdminAuthController::class, 'revokeUserSessions'])
             ->name('api.v1.admin.users.revoke-sessions');
+
+        Route::post('/tenants/{tenant}/approve', [AdminTenantController::class, 'approve'])
+            ->name('api.v1.admin.tenants.approve');
     });
 });
