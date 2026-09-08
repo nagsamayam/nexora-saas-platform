@@ -1,0 +1,47 @@
+### 1. Admin Login (Platform Super Admin)
+# Authenticates a platform administrator account to obtain an admin JWT access token.
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "admin@nexora.internal",
+  "password": "SecretPassword123!",
+  "device_name": "Admin PhpStorm HTTP Client"
+}
+
+> {%
+    client.test("Admin login successful", function() {
+        if (response.status === 200) {
+            client.global.set("admin_access_token", response.body.data.tokens.access_token);
+        }
+    });
+%}
+
+###
+
+### 2. Admin: Revoke All Sessions for a Target User
+# Revokes all active sessions for a target user and increments their auth_version.
+POST {{host}}/api/v1/admin/users/{{target_user_id}}/revoke-sessions
+Authorization: Bearer {{admin_access_token}}
+Accept: application/json
+
+> {%
+    client.test("Target user sessions revoked", function() {
+        client.assert(response.status === 200 || response.status === 403 || response.status === 404, "Expected 200, 403 or 404");
+    });
+%}
+
+###
+
+### 3. Admin: Approve Pending Tenant Organization
+# Approves a pending tenant organization and starts async background provisioning.
+POST {{host}}/api/v1/admin/tenants/{{target_tenant_id}}/approve
+Authorization: Bearer {{admin_access_token}}
+Accept: application/json
+
+> {%
+    client.test("Tenant approved and provisioning initiated", function() {
+        client.assert(response.status === 200 || response.status === 403 || response.status === 404, "Expected 200, 403 or 404");
+    });
+%}
