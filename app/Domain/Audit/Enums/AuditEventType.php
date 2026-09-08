@@ -18,4 +18,6 @@ enum AuditEventType: string
     case TenantApproved = 'TenantApproved';
     case TenantProvisioningStarted = 'TenantProvisioningStarted';
     case TenantProvisioned = 'TenantProvisioned';
+    case SystemReconciliationExecuted = 'SystemReconciliationExecuted';
+    case SystemCleanupExecuted = 'SystemCleanupExecuted';
 }
