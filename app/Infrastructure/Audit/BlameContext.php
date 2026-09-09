@@ -16,6 +16,8 @@ final class BlameContext
 
     private static ?string $explicitSessionId = null;
 
+    private static ?string $explicitCorrelationId = null;
+
     private static ?string $explicitIpAddress = null;
 
     private static ?string $explicitUserAgent = null;
@@ -38,6 +40,12 @@ final class BlameContext
         Context::add('session_id', $sessionId);
     }
 
+    public static function setCorrelationId(?string $correlationId): void
+    {
+        self::$explicitCorrelationId = $correlationId;
+        Context::add('correlation_id', $correlationId);
+    }
+
     public static function setIpAddress(?string $ipAddress): void
     {
         self::$explicitIpAddress = $ipAddress;
@@ -48,6 +56,28 @@ final class BlameContext
     {
         self::$explicitUserAgent = $userAgent;
         Context::add('user_agent', $userAgent);
+    }
+
+    public static function getCorrelationId(): ?string
+    {
+        if (self::$explicitCorrelationId !== null) {
+            return self::$explicitCorrelationId;
+        }
+
+        $fromContext = Context::get('correlation_id');
+        if (is_string($fromContext) && $fromContext !== '') {
+            return $fromContext;
+        }
+
+        if (app()->bound('request')) {
+            $request = app('request');
+            $header = $request->header('X-Correlation-ID');
+            if (is_string($header) && $header !== '') {
+                return $header;
+            }
+        }
+
+        return null;
     }
 
     public static function getActorId(): ?string
@@ -158,6 +188,7 @@ final class BlameContext
 
     /**
      * @param array{
+     *     correlation_id?: string|null,
      *     actor_id?: string|null,
      *     user_id?: string|null,
      *     session_id?: string|null,
@@ -167,6 +198,9 @@ final class BlameContext
      */
     public static function setContext(array $context): void
     {
+        if (array_key_exists('correlation_id', $context)) {
+            self::setCorrelationId($context['correlation_id']);
+        }
         if (array_key_exists('actor_id', $context)) {
             self::setActorId($context['actor_id']);
         }
@@ -189,6 +223,7 @@ final class BlameContext
         self::$explicitActorId = null;
         self::$explicitUserId = null;
         self::$explicitSessionId = null;
+        self::$explicitCorrelationId = null;
         self::$explicitIpAddress = null;
         self::$explicitUserAgent = null;
 
@@ -196,6 +231,7 @@ final class BlameContext
             'actor_id',
             'user_id',
             'session_id',
+            'correlation_id',
             'ip_address',
             'user_agent',
         ]);

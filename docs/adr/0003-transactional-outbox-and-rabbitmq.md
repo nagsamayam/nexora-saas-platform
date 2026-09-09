@@ -16,6 +16,7 @@ Critical domain events (such as user registration or login notifications) must t
 2. **Asynchronous Publishing Worker**: A scheduled/daemon CLI command (`php artisan outbox:publish`) polls pending outbox messages using row-level locking (`SELECT ... FOR UPDATE SKIP LOCKED`), dispatches them onto RabbitMQ queues via Laravel Jobs, and marks them `published`.
 3. **Idempotent Queue Consumers**: Queue consumers (e.g., `SendRegistrationEmailJob`, `SendLoginNotificationEmailJob`) check deduplication keys before executing side effects and record completion, guaranteeing safe at-least-once message processing.
 4. **Resilience & Backoff**: Outbox publishing implements exponential backoff and max retry limits before marking records `failed` for dead-letter inspection.
+5. **Distributed Correlation Tracing**: Outbox records persist and propagate `correlation_id` to rehydrate `BlameContext` across asynchronous worker boundaries.
 
 ## Consequences
 

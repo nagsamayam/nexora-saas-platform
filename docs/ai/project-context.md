@@ -745,6 +745,7 @@ Suggested fields:
 
 ```text
 id UUID
+correlation_id VARCHAR
 event_type VARCHAR
 aggregate_type VARCHAR
 aggregate_id UUID
@@ -1276,3 +1277,26 @@ The authentication module is complete when:
 * Automated tests pass.
 * PHPStan / Larastan passes.
 * The implementation is documented.
+
+---
+
+# 40. Multi-Tenancy, System Maintenance & Guard Architecture (Milestones 4 & 5)
+
+### Multi-Tenancy Onboarding & Provisioning Lifecycle
+* **Onboarding**: `POST /api/v1/tenants/onboard` creates a tenant initialized in `pending` status and assigns the creator as `Owner`.
+* **Admin Approval**: Platform SuperAdmin reviews and approves tenants via `POST /api/v1/admin/tenants/{tenant}/approve`, transitioning status to `provisioning`.
+* **Idempotent Provisioning**: `ProvisionTenantService` and `ProvisionTenantJob` handle provisioning asynchronously using DB row locking (`lockForUpdate`), activating owner membership and transitioning tenant status to `active`.
+* **Tenant Lifecycle Notifications**: Outbox events trigger asynchronous email delivery to tenant owners upon approval (`TenantApprovedMail`) and provisioning completion (`TenantProvisionedMail`).
+
+### Transactional Outbox & Correlation Traceability
+* **Correlation ID Tracking**: `outbox_messages.correlation_id` column and partial index enable distributed tracing across HTTP requests, Outbox records, queue workers, and audit logs.
+* **High-Throughput Non-Blocking Publisher**: `php artisan outbox:publish` polls `pending` messages with PostgreSQL `FOR UPDATE SKIP LOCKED`, preventing lock contention across concurrent workers.
+* **Outbox Pruning & Dead-Publisher Reaping**: `php artisan outbox:prune` cleans historical messages, while `php artisan outbox:reap` restores stuck `publishing` messages back to `pending`.
+
+### System Maintenance & Self-Healing Reconciliation
+* **Token & Session Cleanup**: `php artisan auth:cleanup-tokens` marks past-due tokens/sessions as `expired` and prunes terminal-state records older than retention threshold.
+* **System Reconciliation Loop**: `php artisan system:reconcile` (scheduled hourly) resolves token-session state drift, bulk-revokes sessions/tokens for deactivated users, and recovers stuck provisioning tenants using `BlameContext::SYSTEM_ACTOR_ID` (`00000000-0000-0000-0000-000000000000`).
+
+### Authentication Guard Driver & HTTP Client
+* **Laravel `auth:api` Integration**: `App\Infrastructure\Jwt\JwtGuard` extends `Illuminate\Contracts\Auth\Guard` and is registered via `Auth::extend('jwt', ...)` in `AppServiceProvider`, allowing standard `middleware('auth:api')` routing.
+* **PhpStorm HTTP Client**: Comprehensive `.http` files and environment matrix (`http-client.env.json`) in `requests/` provide ready-to-run API testing without external tools.

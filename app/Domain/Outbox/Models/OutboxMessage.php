@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $event_type
  * @property string $aggregate_type
  * @property string $aggregate_id
+ * @property string|null $correlation_id
  * @property string|null $event_key
  * @property array<string, mixed> $payload
  * @property array<string, mixed>|null $headers
@@ -31,6 +32,7 @@ use Illuminate\Database\Eloquent\Model;
     'event_type',
     'aggregate_type',
     'aggregate_id',
+    'correlation_id',
     'event_key',
     'payload',
     'headers',

@@ -25,6 +25,7 @@ final class ProvisionTenantJob implements ShouldQueue
         public readonly string $tenantId,
         public readonly ?string $actorId = null,
         public readonly array $options = [],
+        public readonly ?string $correlationId = null,
     ) {}
 
     public function handle(ProvisionTenantService $service): void
@@ -32,16 +33,21 @@ final class ProvisionTenantJob implements ShouldQueue
         Log::info('Handling ProvisionTenantJob for tenant.', [
             'tenant_id' => $this->tenantId,
             'actor_id' => $this->actorId,
+            'correlation_id' => $this->correlationId,
         ]);
 
         if ($this->actorId !== null) {
             BlameContext::setActorId($this->actorId);
         }
 
+        if ($this->correlationId !== null) {
+            BlameContext::setCorrelationId($this->correlationId);
+        }
+
         try {
             $service->provision($this->tenantId, $this->options);
         } finally {
-            if ($this->actorId !== null) {
+            if ($this->actorId !== null || $this->correlationId !== null) {
                 BlameContext::clear();
             }
         }

@@ -175,9 +175,10 @@ class SystemReconciliationService
             if ($autoRecoverTenants && $stuckTenants->isNotEmpty()) {
                 foreach ($stuckTenants as $tenant) {
                     ProvisionTenantJob::dispatch(
-                        (string) $tenant->id,
-                        BlameContext::SYSTEM_ACTOR_ID,
-                        ['source' => 'system_reconciliation']
+                        tenantId: (string) $tenant->id,
+                        actorId: BlameContext::SYSTEM_ACTOR_ID,
+                        options: ['source' => 'system_reconciliation'],
+                        correlationId: BlameContext::getCorrelationId(),
                     );
                     $stuckTenantsRecovered++;
                 }

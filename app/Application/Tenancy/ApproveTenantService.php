@@ -116,7 +116,12 @@ final class ApproveTenantService
         if ($sync) {
             $tenant = $this->provisionTenantService->provision($tenant->id);
         } else {
-            ProvisionTenantJob::dispatch($tenant->id, $admin->id);
+            ProvisionTenantJob::dispatch(
+                tenantId: $tenant->id,
+                actorId: $admin->id,
+                options: [],
+                correlationId: BlameContext::getCorrelationId(),
+            );
         }
 
         return $tenant;

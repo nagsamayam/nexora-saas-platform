@@ -26,16 +26,22 @@ final class OutboxService
         array $payload,
         ?string $eventKey = null,
         array $headers = [],
+        ?string $correlationId = null,
     ): OutboxMessage {
         $eventTypeName = $eventType instanceof OutboxEventType ? $eventType->value : $eventType;
 
-        $correlationId = Context::get('correlation_id');
+        $resolvedCorrelationId = $correlationId
+            ?? (is_string($headers['correlation_id'] ?? null) ? $headers['correlation_id'] : null)
+            ?? BlameContext::getCorrelationId()
+            ?? (is_string(Context::get('correlation_id')) ? Context::get('correlation_id') : null)
+            ?? (string) Str::uuid();
+
         $requestId = Context::get('request_id');
         $causationId = Context::get('causation_id');
 
         $defaultHeaders = [
             'event_id' => (string) Str::uuid(),
-            'correlation_id' => is_string($correlationId) ? $correlationId : null,
+            'correlation_id' => $resolvedCorrelationId,
             'request_id' => is_string($requestId) ? $requestId : null,
             'causation_id' => is_string($causationId) ? $causationId : null,
             'actor_id' => BlameContext::getActorId(),
@@ -51,6 +57,7 @@ final class OutboxService
             'event_type' => $eventTypeName,
             'aggregate_type' => $aggregateType,
             'aggregate_id' => $aggregateId,
+            'correlation_id' => $resolvedCorrelationId,
             'event_key' => $eventKey,
             'payload' => $payload,
             'headers' => $mergedHeaders,

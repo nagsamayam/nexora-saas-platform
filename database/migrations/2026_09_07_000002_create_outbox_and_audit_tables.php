@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('event_type', 120);
             $table->string('aggregate_type', 120);
             $table->uuid('aggregate_id');
+            $table->string('correlation_id', 255)->nullable();
             $table->string('event_key', 255)->nullable();
             $table->jsonb('payload');
             $table->jsonb('headers')->nullable();
@@ -34,6 +35,7 @@ return new class extends Migration
         DB::statement("ALTER TABLE outbox_messages ADD CONSTRAINT outbox_messages_status_check CHECK (status IN ('pending', 'publishing', 'published', 'failed'));");
         DB::statement('CREATE INDEX outbox_messages_status_available_index ON outbox_messages (status, available_at) WHERE status IN (\'pending\', \'publishing\');');
         DB::statement('CREATE INDEX outbox_messages_aggregate_index ON outbox_messages (aggregate_type, aggregate_id);');
+        DB::statement('CREATE INDEX outbox_messages_correlation_id_index ON outbox_messages (correlation_id) WHERE correlation_id IS NOT NULL;');
         DB::statement('CREATE UNIQUE INDEX outbox_messages_event_key_unique ON outbox_messages (event_key) WHERE event_key IS NOT NULL;');
 
         Schema::create('audit_logs', function (Blueprint $table) {

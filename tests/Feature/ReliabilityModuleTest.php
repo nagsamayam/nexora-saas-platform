@@ -15,6 +15,7 @@ use App\Domain\Outbox\Enums\OutboxEventType;
 use App\Domain\Outbox\Enums\OutboxStatus;
 use App\Domain\Outbox\Models\OutboxMessage;
 use App\Infrastructure\Audit\BlameContext;
+use App\Infrastructure\Outbox\OutboxService;
 use App\Jobs\Auth\SendLoginNotificationEmailJob;
 use App\Jobs\Auth\SendRegistrationEmailJob;
 use App\Mail\Auth\LoginNotificationMail;
@@ -47,6 +48,8 @@ test('user registration persists outbox event and audit log inside database tran
     expect($outbox)->not->toBeNull()
         ->and($outbox->event_type)->toBe(OutboxEventType::UserRegistered->value)
         ->and($outbox->status)->toBe(OutboxStatus::Pending)
+        ->and($outbox->correlation_id)->toBeString()
+        ->and($outbox->headers['correlation_id'])->toBe($outbox->correlation_id)
         ->and($outbox->payload['email'])->toBe('jane.doe@example.com')
         ->and($outbox->payload['name'])->toBe('Jane Doe');
 
@@ -112,6 +115,8 @@ test('user login persists outbox event and audit log', function () {
 
     expect($outbox)->not->toBeNull()
         ->and($outbox->event_key)->toBe(sprintf('user-logged-in-%s', $outbox->headers['session_id']))
+        ->and($outbox->correlation_id)->toBeString()
+        ->and($outbox->headers['correlation_id'])->toBe($outbox->correlation_id)
         ->and($outbox->payload['email'])->toBe('login.test@example.com')
         ->and($outbox->payload['device_name'])->toBe('MacBook Pro Safari')
         ->and($outbox->headers['session_id'])->toBeString();
@@ -271,11 +276,54 @@ test('refresh token reuse detection records RefreshTokenReuseDetected audit log'
 test('blame context provides fallback when request user is present or explicitly set', function () {
     BlameContext::clear();
 
-    expect(BlameContext::getActorId())->toBeNull();
+    expect(BlameContext::getActorId())->toBeNull()
+        ->and(BlameContext::getCorrelationId())->toBeNull();
 
     BlameContext::setActorId('01918a22-0000-7000-8000-000000000009');
-    expect(BlameContext::getActorId())->toBe('01918a22-0000-7000-8000-000000000009');
+    BlameContext::setCorrelationId('01918a22-0000-7000-8000-000000000010');
+
+    expect(BlameContext::getActorId())->toBe('01918a22-0000-7000-8000-000000000009')
+        ->and(BlameContext::getCorrelationId())->toBe('01918a22-0000-7000-8000-000000000010');
 
     BlameContext::clear();
-    expect(BlameContext::getActorId())->toBeNull();
+    expect(BlameContext::getActorId())->toBeNull()
+        ->and(BlameContext::getCorrelationId())->toBeNull();
+});
+
+test('outbox service persists explicit and context-based correlation IDs', function () {
+    BlameContext::clear();
+
+    /** @var OutboxService $outboxService */
+    $outboxService = app(OutboxService::class);
+
+    // 1. Explicit correlation ID passed
+    $msg1 = $outboxService->record(
+        eventType: 'CustomEvent',
+        aggregateType: 'Order',
+        aggregateId: '01918a22-0000-7000-8000-000000000011',
+        payload: ['data' => 'test1'],
+        correlationId: 'cid-explicit-12345',
+    );
+
+    expect($msg1->correlation_id)->toBe('cid-explicit-12345')
+        ->and($msg1->headers['correlation_id'])->toBe('cid-explicit-12345');
+
+    // Verify index query
+    $queried = OutboxMessage::where('correlation_id', 'cid-explicit-12345')->first();
+    expect($queried)->not->toBeNull()
+        ->and($queried->id)->toBe($msg1->id);
+
+    // 2. Correlation ID from BlameContext
+    BlameContext::setCorrelationId('cid-from-blame-context');
+    $msg2 = $outboxService->record(
+        eventType: 'CustomEvent2',
+        aggregateType: 'Order',
+        aggregateId: '01918a22-0000-7000-8000-000000000012',
+        payload: ['data' => 'test2'],
+    );
+
+    expect($msg2->correlation_id)->toBe('cid-from-blame-context')
+        ->and($msg2->headers['correlation_id'])->toBe('cid-from-blame-context');
+
+    BlameContext::clear();
 });

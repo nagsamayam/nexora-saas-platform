@@ -74,6 +74,7 @@ class SendTenantApprovedEmailJob implements ShouldQueue
 
         // Rehydrate BlameContext from headers
         BlameContext::setContext([
+            'correlation_id' => is_string($this->headers['correlation_id'] ?? null) ? $this->headers['correlation_id'] : null,
             'actor_id' => is_string($this->headers['actor_id'] ?? null) ? $this->headers['actor_id'] : null,
             'user_id' => is_string($this->headers['user_id'] ?? null) ? $this->headers['user_id'] : null,
             'session_id' => is_string($this->headers['session_id'] ?? null) ? $this->headers['session_id'] : null,
