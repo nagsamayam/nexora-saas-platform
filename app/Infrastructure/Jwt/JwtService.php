@@ -36,7 +36,7 @@ class JwtService
      */
     public function issueAccessToken(User $user, string $sessionId, array $customClaims = []): string
     {
-        $now = CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
         /** @var int $ttl */
         $ttl = $this->config['ttl'] ?? 900;
         $exp = $now->addSeconds($ttl);
@@ -135,7 +135,7 @@ class JwtService
      */
     public function validateClaims(array $payload): void
     {
-        $now = CarbonImmutable::now('UTC')->getTimestamp();
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'))->getTimestamp();
         /** @var int $leeway */
         $leeway = $this->config['leeway'] ?? 0;
 
@@ -208,7 +208,7 @@ class JwtService
             return;
         }
 
-        $now = CarbonImmutable::now('UTC')->getTimestamp();
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'))->getTimestamp();
         $ttl = max(0, $exp - $now);
 
         if ($ttl > 0) {

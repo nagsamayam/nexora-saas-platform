@@ -11,8 +11,8 @@ use App\Jobs\Auth\SendLoginNotificationEmailJob;
 use App\Jobs\Auth\SendRegistrationEmailJob;
 use App\Jobs\Tenancy\SendTenantApprovedEmailJob;
 use App\Jobs\Tenancy\SendTenantProvisionedEmailJob;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -41,7 +41,7 @@ class PublishOutboxMessagesCommand extends Command
         $batchSize = (int) $this->option('batch-size');
         $maxAttempts = (int) $this->option('max-attempts');
 
-        $now = now();
+        $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
         /** @var list<OutboxMessage> $messages */
         $messages = DB::transaction(function () use ($batchSize, $now): array {
@@ -84,7 +84,7 @@ class PublishOutboxMessagesCommand extends Command
 
             $message->update([
                 'status' => OutboxStatus::Published,
-                'published_at' => now(),
+                'published_at' => CarbonImmutable::now((string) config('app.timezone', 'UTC')),
                 'last_error' => null,
             ]);
 
@@ -98,7 +98,7 @@ class PublishOutboxMessagesCommand extends Command
 
             // Exponential backoff: 2^(attempts) * 30 seconds
             $delaySeconds = (int) min(3600, (2 ** $message->attempts) * 30);
-            $nextAvailableAt = Carbon::now()->addSeconds($delaySeconds);
+            $nextAvailableAt = CarbonImmutable::now((string) config('app.timezone', 'UTC'))->addSeconds($delaySeconds);
 
             $message->update([
                 'status' => $nextStatus,

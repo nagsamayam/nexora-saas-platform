@@ -39,7 +39,7 @@ class RefreshTokenService
 
         try {
             return DB::transaction(function () use ($tokenHash, &$reuseDetected, &$reuseSessionId, &$reuseUserId): AuthTokenResultDTO {
-                $now = CarbonImmutable::now('UTC');
+                $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
                 /** @var AuthRefreshToken|null $tokenRecord */
                 $tokenRecord = AuthRefreshToken::where('token_hash', $tokenHash)
@@ -131,7 +131,7 @@ class RefreshTokenService
             });
         } catch (RefreshTokenReuseException $e) {
             if ($reuseDetected && $reuseSessionId !== null) {
-                $now = CarbonImmutable::now('UTC');
+                $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
                 AuthSession::where('id', $reuseSessionId)->update([
                     'status' => SessionStatus::Revoked,
                     'revoked_at' => $now,

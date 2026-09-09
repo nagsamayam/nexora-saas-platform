@@ -37,7 +37,7 @@ class LogoutUserService
         $userId = $payload['sub'] ?? null;
 
         if ($sid) {
-            $now = CarbonImmutable::now('UTC');
+            $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
 
             DB::transaction(function () use ($sid, $now): void {
                 AuthSession::where('id', $sid)->update([
