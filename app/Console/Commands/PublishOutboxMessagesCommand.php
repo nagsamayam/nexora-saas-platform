@@ -45,11 +45,11 @@ class PublishOutboxMessagesCommand extends Command
 
         /** @var list<OutboxMessage> $messages */
         $messages = DB::transaction(function () use ($batchSize, $now): array {
-            $records = OutboxMessage::whereIn('status', [OutboxStatus::Pending->value, OutboxStatus::Publishing->value])
+            $records = OutboxMessage::where('status', OutboxStatus::Pending->value)
                 ->where('available_at', '<=', $now)
                 ->orderBy('created_at', 'asc')
                 ->limit($batchSize)
-                ->lockForUpdate()
+                ->lock('FOR UPDATE SKIP LOCKED')
                 ->get();
 
             foreach ($records as $message) {
