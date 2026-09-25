@@ -37,7 +37,8 @@ services:
     container_name: saas-app
     restart: unless-stopped
     environment:
-      DB_HOST: pg_master
+      DB_HOST: pg_bouncer
+      DB_PORT: 6432
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
     depends_on:
@@ -49,6 +50,8 @@ services:
         condition: service_healthy
     networks:
       - backend-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep php-fpm | grep -v grep"]
       interval: 30s
@@ -68,7 +71,8 @@ services:
     container_name: saas-queue-worker
     restart: unless-stopped
     environment:
-      DB_HOST: pg_master
+      DB_HOST: pg_bouncer
+      DB_PORT: 6432
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       LARAVEL_DEFAULT_QUEUE: ${RABBITMQ_QUEUE:-default}
@@ -79,7 +83,11 @@ services:
                sleep 3;
              done;
              echo 'RabbitMQ is online! Booting Laravel asynchronous worker...';
-             php artisan queue:$${LARAVEL_QUEUE_COMMAND} rabbitmq --queue=$${LARAVEL_DEFAULT_QUEUE} --sleep=3 --tries=3 --max-time=3600 --max-jobs=1000 --memory=128 --timeout=90"
+             if [ \"$${LARAVEL_QUEUE_COMMAND}\" = \"listen\" ]; then
+               php artisan queue:listen rabbitmq --queue=$${LARAVEL_DEFAULT_QUEUE} --sleep=3 --tries=3 --memory=128 --timeout=90
+             else
+               php artisan queue:work rabbitmq --queue=$${LARAVEL_DEFAULT_QUEUE} --sleep=3 --tries=3 --max-time=3600 --max-jobs=1000 --memory=128 --timeout=90
+             fi"
     depends_on:
       pg_master:
         condition: service_healthy
@@ -163,7 +171,7 @@ services:
       - DB_PORT=5432
       - DB_USER=${DB_USERNAME:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
-      - DB_NAME=${DB_DATABASE:-laravel_prod}
+      - DB_NAME=${DB_DATABASE:-nexora}
       - LISTEN_PORT=6432
       - POOL_MODE=transaction
       - MAX_CLIENT_CONN=1000
@@ -184,7 +192,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-laravel_prod}
+      POSTGRES_DB: ${DB_DATABASE:-nexora}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       POSTGRES_REPLICATION_USER: ${POSTGRES_REPLICATION_USER:-replicator}

@@ -1,0 +1,147 @@
+### 1. User Registration
+# Registers a new user account with unique normalized email.
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "user.test@nexora.internal",
+  "password": "SecretPassword123!",
+  "first_name": "Test",
+  "last_name": "User"
+}
+
+> {%
+    client.test("Registration successful or duplicate", function() {
+        client.assert(response.status === 201 || response.status === 409, "Expected 201 Created or 409 Conflict");
+        if (response.status === 201) {
+            client.assert(response.body.data.email === "user.test@nexora.internal", "User email matches");
+        }
+    });
+%}
+
+###
+
+### 2. User Login
+# Authenticates user and returns RS256 JWT access token and opaque refresh token.
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "user.test@nexora.internal",
+  "password": "SecretPassword123!",
+  "device_name": "PhpStorm HTTP Client"
+}
+
+> {%
+    client.test("Login successful and tokens captured", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+        client.assert(response.body.data.tokens.access_token !== undefined, "Access token received");
+        client.assert(response.body.data.tokens.refresh_token !== undefined, "Refresh token received");
+
+        // Automatically set access and refresh tokens for subsequent requests
+        client.global.set("access_token", response.body.data.tokens.access_token);
+        client.global.set("refresh_token", response.body.data.tokens.refresh_token);
+        client.global.set("session_id", response.body.data.session.id);
+    });
+%}
+
+###
+
+### 3. Get Authenticated User Profile (Me)
+# Fetches the authenticated user profile using the RS256 JWT Bearer token.
+GET {{host}}/api/v1/auth/me
+Authorization: Bearer {{access_token}}
+Accept: application/json
+
+> {%
+    client.test("Fetch authenticated user", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+        client.assert(response.body.data.id !== undefined, "User ID present");
+    });
+%}
+
+###
+
+### 4. Refresh Access Token (Token Rotation)
+# Exchanges an opaque refresh token for a new pair of access and refresh tokens.
+POST {{host}}/api/v1/auth/refresh
+Content-Type: application/json
+Accept: application/json
+
+{
+  "refresh_token": "{{refresh_token}}"
+}
+
+> {%
+    client.test("Token rotated successfully", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+        client.assert(response.body.data.tokens.access_token !== undefined, "New access token received");
+        client.assert(response.body.data.tokens.refresh_token !== undefined, "New refresh token received");
+
+        // Update environment tokens with rotated pair
+        client.global.set("access_token", response.body.data.tokens.access_token);
+        client.global.set("refresh_token", response.body.data.tokens.refresh_token);
+    });
+%}
+
+###
+
+### 5. List Active Sessions
+# Retrieves all active sessions for the authenticated user.
+GET {{host}}/api/v1/auth/sessions
+Authorization: Bearer {{access_token}}
+Accept: application/json
+
+> {%
+    client.test("Sessions retrieved", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+        client.assert(Array.isArray(response.body.data), "Expected sessions array");
+        if (response.body.data.length > 0) {
+            client.global.set("session_id", response.body.data[0].id);
+        }
+    });
+%}
+
+###
+
+### 6. Revoke Specific Session
+# Revokes an active session by UUID.
+DELETE {{host}}/api/v1/auth/sessions/{{session_id}}
+Authorization: Bearer {{access_token}}
+Accept: application/json
+
+> {%
+    client.test("Session revoked", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+    });
+%}
+
+###
+
+### 7. Logout Current Session
+# Revokes the current session, invalidates the refresh token, and blacklists the JWT.
+POST {{host}}/api/v1/auth/logout
+Authorization: Bearer {{access_token}}
+Accept: application/json
+
+> {%
+    client.test("Logout successful", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+    });
+%}
+
+###
+
+### 8. Logout All Sessions (Global Logout)
+# Revokes all user sessions and increments auth_version for global token invalidation.
+POST {{host}}/api/v1/auth/logout-all
+Authorization: Bearer {{access_token}}
+Accept: application/json
+
+> {%
+    client.test("Logout all sessions successful", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+    });
+%}

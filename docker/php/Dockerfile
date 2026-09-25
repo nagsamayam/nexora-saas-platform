@@ -49,8 +49,7 @@ COPY --from=builder --chown=laravel:www-data /var/www/html/vendor ./vendor
 COPY --chown=laravel:www-data . .
 
 COPY --from=composer:2.8 /usr/bin/composer /usr/bin/composer
-RUN composer dump-autoload --no-dev --classmap-authoritative --no-scripts \
-    && rm /usr/bin/composer
+RUN composer dump-autoload --no-dev --classmap-authoritative --no-scripts
 
 # Copy the entrypoint script and make it executable
 COPY docker/php/entrypoint.sh /usr/local/bin/docker-entrypoint
