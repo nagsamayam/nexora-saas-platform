@@ -16,6 +16,7 @@ use App\Infrastructure\Audit\BlameContext;
 use App\Infrastructure\Outbox\OutboxService;
 use App\Infrastructure\Queue\Jobs\ProvisionTenantJob;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final class ApproveTenantService
@@ -55,9 +56,12 @@ final class ApproveTenantService
                 return $tenant->load('memberships');
             }
 
+            $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
+
             // Transition status to Provisioning
             $tenant->update([
                 'status' => TenantStatus::Provisioning,
+                'approved_at' => $now,
                 'row_version' => $tenant->row_version + 1,
             ]);
 
@@ -70,7 +74,7 @@ final class ApproveTenantService
                 ->first();
 
             $ownerUser = $ownerMembership?->user;
-            $ownerName = $ownerUser ? trim(($ownerUser->first_name ?? '') . ' ' . ($ownerUser->last_name ?? '')) : '';
+            $ownerName = $ownerUser ? trim(($ownerUser->first_name ?? '').' '.($ownerUser->last_name ?? '')) : '';
             if ($ownerName === '') {
                 $ownerName = (string) ($ownerUser->email ?? 'Tenant Owner');
             }

@@ -22,7 +22,7 @@ class ReadyHealthController extends Controller
             'rabbitmq' => $this->checkRabbitMq(),
         ];
 
-        $allHealthy = collect($checks)->every(static fn(array $check): bool => $check['status'] === 'ok');
+        $allHealthy = collect($checks)->every(static fn (array $check): bool => $check['status'] === 'ok');
 
         $status = $allHealthy ? Response::HTTP_OK : Response::HTTP_SERVICE_UNAVAILABLE;
 

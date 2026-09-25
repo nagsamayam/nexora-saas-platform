@@ -75,7 +75,8 @@ test('super admin can approve a pending tenant and trigger provisioning', functi
 
     // Check Tenant in database
     $tenant->refresh();
-    expect($tenant->status)->toBe(TenantStatus::Provisioning);
+    expect($tenant->status)->toBe(TenantStatus::Provisioning)
+        ->and($tenant->approved_at)->not->toBeNull();
 
     // Check Outbox message for TenantApproved
     $outbox = OutboxMessage::query()
@@ -149,6 +150,8 @@ test('tenant provisioning is idempotent', function () {
     // Initial provisioning
     $provisionedTenant = $service->provision($tenant->id);
     expect($provisionedTenant->status)->toBe(TenantStatus::Active)
+        ->and($provisionedTenant->provisioning_started_at)->not->toBeNull()
+        ->and($provisionedTenant->provisioned_at)->not->toBeNull()
         ->and($provisionedTenant->row_version)->toBe(2);
 
     $outboxCount = OutboxMessage::query()
