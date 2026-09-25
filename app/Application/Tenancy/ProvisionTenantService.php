@@ -53,8 +53,16 @@ final class ProvisionTenantService
                 return $tenant->load('memberships');
             }
 
-            // Record provisioning started audit log
+            $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
+
+            // Record provisioning started audit log & timestamp
             $actorId = BlameContext::getActorId();
+            if ($tenant->provisioning_started_at === null) {
+                $tenant->update([
+                    'provisioning_started_at' => $now,
+                ]);
+            }
+
             $this->auditService->record(
                 eventType: AuditEventType::TenantProvisioningStarted,
                 userId: $actorId,
@@ -73,12 +81,13 @@ final class ProvisionTenantService
                 ->where('role', TenantRole::Owner)
                 ->update([
                     'status' => TenantMembershipStatus::Active,
-                    'updated_at' => CarbonImmutable::now(),
+                    'updated_at' => $now,
                 ]);
 
-            // 2. Mark tenant status as Active
+            // 2. Mark tenant status as Active and set provisioned_at
             $tenant->update([
                 'status' => TenantStatus::Active,
+                'provisioned_at' => $now,
                 'row_version' => $tenant->row_version + 1,
             ]);
 
@@ -91,7 +100,7 @@ final class ProvisionTenantService
                 ->first();
 
             $ownerUser = $ownerMembership?->user;
-            $ownerName = $ownerUser ? trim(($ownerUser->first_name ?? '') . ' ' . ($ownerUser->last_name ?? '')) : '';
+            $ownerName = $ownerUser ? trim(($ownerUser->first_name ?? '').' '.($ownerUser->last_name ?? '')) : '';
             if ($ownerName === '') {
                 $ownerName = (string) ($ownerUser->email ?? 'Tenant Owner');
             }

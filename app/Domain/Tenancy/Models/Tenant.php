@@ -19,6 +19,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $slug
  * @property TenantStatus $status
  * @property int $row_version
+ * @property CarbonImmutable|null $approved_at
+ * @property CarbonImmutable|null $provisioning_started_at
+ * @property CarbonImmutable|null $provisioned_at
+ * @property CarbonImmutable|null $suspended_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property CarbonImmutable|null $deleted_at
@@ -40,6 +44,10 @@ class Tenant extends Model
         'name',
         'slug',
         'status',
+        'approved_at',
+        'provisioning_started_at',
+        'provisioned_at',
+        'suspended_at',
         'row_version',
     ];
 
@@ -58,6 +66,10 @@ class Tenant extends Model
     {
         return [
             'status' => TenantStatus::class,
+            'approved_at' => 'immutable_datetime',
+            'provisioning_started_at' => 'immutable_datetime',
+            'provisioned_at' => 'immutable_datetime',
+            'suspended_at' => 'immutable_datetime',
             'row_version' => 'integer',
             'created_at' => 'immutable_datetime',
             'updated_at' => 'immutable_datetime',

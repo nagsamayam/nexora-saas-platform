@@ -314,6 +314,7 @@ test('system:reconcile synchronizes tokens, deactivated users, and recovers stuc
     DB::table('tenants')->where('id', $stuckTenant->id)->update([
         'created_at' => $now->subMinutes(45),
         'updated_at' => $now->subMinutes(40),
+        'provisioning_started_at' => $now->subMinutes(40),
     ]);
     TenantMembership::create([
         'user_id' => $owner->id,

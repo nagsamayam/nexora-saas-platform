@@ -87,7 +87,13 @@ class SystemReconciliationService
                 // Stuck provisioning tenants
                 $stuckTenantsCount = Tenant::query()
                     ->where('status', TenantStatus::Provisioning->value)
-                    ->where('updated_at', '<=', $provisioningThreshold)
+                    ->where(function ($query) use ($provisioningThreshold): void {
+                        $query->where('provisioning_started_at', '<=', $provisioningThreshold)
+                            ->orWhere(function ($q) use ($provisioningThreshold): void {
+                                $q->whereNull('provisioning_started_at')
+                                    ->where('updated_at', '<=', $provisioningThreshold);
+                            });
+                    })
                     ->count();
 
                 return [
@@ -166,7 +172,13 @@ class SystemReconciliationService
             // 3. Reconcile stuck provisioning tenants
             $stuckTenants = Tenant::query()
                 ->where('status', TenantStatus::Provisioning->value)
-                ->where('updated_at', '<=', $provisioningThreshold)
+                ->where(function ($query) use ($provisioningThreshold): void {
+                    $query->where('provisioning_started_at', '<=', $provisioningThreshold)
+                        ->orWhere(function ($q) use ($provisioningThreshold): void {
+                            $q->whereNull('provisioning_started_at')
+                                ->where('updated_at', '<=', $provisioningThreshold);
+                        });
+                })
                 ->get();
 
             $stuckTenantsDetected = $stuckTenants->count();

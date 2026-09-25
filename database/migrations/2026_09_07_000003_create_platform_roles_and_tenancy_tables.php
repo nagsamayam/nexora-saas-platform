@@ -37,6 +37,10 @@ return new class extends Migration
             $table->string('name', 150);
             $table->string('slug', 100);
             $table->string('status', 32)->default('pending');
+            $table->timestampTz('approved_at')->nullable();
+            $table->timestampTz('provisioning_started_at')->nullable();
+            $table->timestampTz('provisioned_at')->nullable();
+            $table->timestampTz('suspended_at')->nullable();
             $table->unsignedBigInteger('row_version')->default(1);
             $table->timestampTz('created_at')->useCurrent();
             $table->timestampTz('updated_at')->useCurrent();
