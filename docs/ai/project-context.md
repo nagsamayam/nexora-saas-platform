@@ -1285,7 +1285,7 @@ The authentication module is complete when:
 ### Multi-Tenancy Onboarding & Provisioning Lifecycle
 * **Onboarding**: `POST /api/v1/tenants/onboard` creates a tenant initialized in `pending` status and assigns the creator as `Owner`.
 * **Admin Approval**: Platform SuperAdmin reviews and approves tenants via `POST /api/v1/admin/tenants/{tenant}/approve`, transitioning status to `provisioning`.
-* **Idempotent Provisioning**: `ProvisionTenantService` and `ProvisionTenantJob` handle provisioning asynchronously using DB row locking (`lockForUpdate`), activating owner membership and transitioning tenant status to `active`.
+* **Idempotent Provisioning & Concurrency Safety**: `ProvisionTenantService` and `ProvisionTenantJob` handle provisioning asynchronously using dispatch-level uniqueness (`ShouldBeUnique` with `$uniqueFor` lock on `tenant_id`) and database-level row locking (`lockForUpdate`), activating owner membership and transitioning tenant status to `active`.
 * **Tenant Lifecycle Notifications**: Outbox events trigger asynchronous email delivery to tenant owners upon approval (`TenantApprovedMail`) and provisioning completion (`TenantProvisionedMail`).
 
 ### Transactional Outbox & Correlation Traceability

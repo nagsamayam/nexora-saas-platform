@@ -37,7 +37,7 @@ Milestone 4 — Multi-Tenant Architecture & Onboarding [Completed]
 - Automatic Owner membership initialization
 - Slug generation, validation, and collision resolution
 - Admin approval workflow (`POST /api/v1/admin/tenants/{tenant}/approve`)
-- Asynchronous, idempotent tenant provisioning (`ProvisionTenantService`, `ProvisionTenantJob`)
+- Asynchronous, idempotent tenant provisioning (`ProvisionTenantService`, `ProvisionTenantJob` with `ShouldBeUnique`)
 - Asynchronous owner notifications (`TenantApprovedMail`, `TenantProvisionedMail`)
 - Outbox event publishing & audit logging for tenant lifecycle (`TenantCreated`, `TenantApproved`, `TenantProvisioningStarted`, `TenantProvisioned`)
 

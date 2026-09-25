@@ -6,17 +6,22 @@ namespace App\Infrastructure\Queue\Jobs;
 
 use App\Application\Tenancy\ProvisionTenantService;
 use App\Infrastructure\Audit\BlameContext;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
-final class ProvisionTenantJob implements ShouldQueue
+final class ProvisionTenantJob implements ShouldQueue, ShouldBeUnique
 {
     use Queueable;
 
     public int $tries = 3;
-
     public int $backoff = 10;
+
+    /**
+     * The number of seconds after which the unique lock will be released.
+     */
+    public int $uniqueFor = 300; // 5 minutes safety window
 
     /**
      * @param  array<string, mixed>  $options
@@ -27,6 +32,14 @@ final class ProvisionTenantJob implements ShouldQueue
         public readonly array $options = [],
         public readonly ?string $correlationId = null,
     ) {}
+
+    /**
+     * The unique ID of the job.
+     */
+    public function uniqueId(): string
+    {
+        return $this->tenantId;
+    }
 
     public function handle(ProvisionTenantService $service): void
     {

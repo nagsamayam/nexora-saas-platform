@@ -70,7 +70,7 @@ final class ApproveTenantService
                 ->first();
 
             $ownerUser = $ownerMembership?->user;
-            $ownerName = $ownerUser ? trim(($ownerUser->first_name ?? '').' '.($ownerUser->last_name ?? '')) : '';
+            $ownerName = $ownerUser ? trim(($ownerUser->first_name ?? '') . ' ' . ($ownerUser->last_name ?? '')) : '';
             if ($ownerName === '') {
                 $ownerName = (string) ($ownerUser->email ?? 'Tenant Owner');
             }
