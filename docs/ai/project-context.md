@@ -1292,7 +1292,7 @@ The authentication module is complete when:
 ### Transactional Outbox & Correlation Traceability
 * **Correlation ID Tracking**: `outbox_messages.correlation_id` column and partial index enable distributed tracing across HTTP requests, Outbox records, queue workers, and audit logs.
 * **High-Throughput Non-Blocking Publisher**: `php artisan outbox:publish` polls `pending` messages with PostgreSQL `FOR UPDATE SKIP LOCKED`, preventing lock contention across concurrent workers.
-* **Outbox Pruning & Dead-Publisher Reaping**: `php artisan outbox:prune` cleans historical messages, while `php artisan outbox:reap` restores stuck `publishing` messages back to `pending`.
+* **Outbox Pruning & Dead-Publisher Reaping**: `php artisan outbox:prune` and `php artisan outbox:reap` utilize batch deletion, composite indexing on `(status, published_at)`, and bounded transactions to prevent long-running locks during massive cleanups.
 
 ### System Maintenance & Self-Healing Reconciliation
 * **Token & Session Cleanup**: `php artisan auth:cleanup-tokens` marks past-due tokens/sessions as `expired` and prunes terminal-state records older than retention threshold.

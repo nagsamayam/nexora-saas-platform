@@ -25,6 +25,7 @@ class OutboxMaintenanceService
      * @param  array{
      *     published_retention_days?: int,
      *     failed_retention_days?: int,
+     *     batch_size?: int,
      *     dry_run?: bool
      * }  $options
      * @return array{
@@ -36,6 +37,7 @@ class OutboxMaintenanceService
     {
         $publishedDays = $options['published_retention_days'] ?? 7;
         $failedDays = $options['failed_retention_days'] ?? 30;
+        $batchSize = max(1, (int) ($options['batch_size'] ?? 1000));
         $dryRun = $options['dry_run'] ?? false;
 
         $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
@@ -48,12 +50,24 @@ class OutboxMaintenanceService
             if ($dryRun) {
                 $prunedPublished = OutboxMessage::query()
                     ->where('status', OutboxStatus::Published->value)
-                    ->where('created_at', '<=', $publishedThreshold)
+                    ->where(function ($query) use ($publishedThreshold): void {
+                        $query->where('published_at', '<=', $publishedThreshold)
+                            ->orWhere(function ($q) use ($publishedThreshold): void {
+                                $q->whereNull('published_at')
+                                    ->where('created_at', '<=', $publishedThreshold);
+                            });
+                    })
                     ->count();
 
                 $prunedFailed = OutboxMessage::query()
                     ->where('status', OutboxStatus::Failed->value)
-                    ->where('created_at', '<=', $failedThreshold)
+                    ->where(function ($query) use ($failedThreshold): void {
+                        $query->where('updated_at', '<=', $failedThreshold)
+                            ->orWhere(function ($q) use ($failedThreshold): void {
+                                $q->whereNull('updated_at')
+                                    ->where('created_at', '<=', $failedThreshold);
+                            });
+                    })
                     ->count();
 
                 return [
@@ -62,23 +76,65 @@ class OutboxMaintenanceService
                 ];
             }
 
-            /** @var array{pruned_published: int, pruned_failed: int} $result */
-            $result = DB::transaction(function () use ($publishedThreshold, $failedThreshold): array {
-                $prunedPublished = OutboxMessage::query()
+            // Batch deletion in short transactions to prevent long-running table locks
+            $totalPrunedPublished = 0;
+            do {
+                $publishedIds = OutboxMessage::query()
                     ->where('status', OutboxStatus::Published->value)
-                    ->where('created_at', '<=', $publishedThreshold)
-                    ->delete();
+                    ->where(function ($query) use ($publishedThreshold): void {
+                        $query->where('published_at', '<=', $publishedThreshold)
+                            ->orWhere(function ($q) use ($publishedThreshold): void {
+                                $q->whereNull('published_at')
+                                    ->where('created_at', '<=', $publishedThreshold);
+                            });
+                    })
+                    ->limit($batchSize)
+                    ->pluck('id');
 
-                $prunedFailed = OutboxMessage::query()
+                if ($publishedIds->isEmpty()) {
+                    break;
+                }
+
+                $deletedCount = DB::transaction(function () use ($publishedIds): int {
+                    return OutboxMessage::query()
+                        ->whereIn('id', $publishedIds)
+                        ->delete();
+                });
+
+                $totalPrunedPublished += $deletedCount;
+            } while ($publishedIds->count() >= $batchSize);
+
+            $totalPrunedFailed = 0;
+            do {
+                $failedIds = OutboxMessage::query()
                     ->where('status', OutboxStatus::Failed->value)
-                    ->where('created_at', '<=', $failedThreshold)
-                    ->delete();
+                    ->where(function ($query) use ($failedThreshold): void {
+                        $query->where('updated_at', '<=', $failedThreshold)
+                            ->orWhere(function ($q) use ($failedThreshold): void {
+                                $q->whereNull('updated_at')
+                                    ->where('created_at', '<=', $failedThreshold);
+                            });
+                    })
+                    ->limit($batchSize)
+                    ->pluck('id');
 
-                return [
-                    'pruned_published' => $prunedPublished,
-                    'pruned_failed' => $prunedFailed,
-                ];
-            });
+                if ($failedIds->isEmpty()) {
+                    break;
+                }
+
+                $deletedCount = DB::transaction(function () use ($failedIds): int {
+                    return OutboxMessage::query()
+                        ->whereIn('id', $failedIds)
+                        ->delete();
+                });
+
+                $totalPrunedFailed += $deletedCount;
+            } while ($failedIds->count() >= $batchSize);
+
+            $result = [
+                'pruned_published' => $totalPrunedPublished,
+                'pruned_failed' => $totalPrunedFailed,
+            ];
 
             if ($result['pruned_published'] > 0 || $result['pruned_failed'] > 0) {
                 $this->auditService->record(
@@ -92,13 +148,12 @@ class OutboxMaintenanceService
                         'pruned_failed' => $result['pruned_failed'],
                         'published_retention_days' => $publishedDays,
                         'failed_retention_days' => $failedDays,
+                        'batch_size' => $batchSize,
                     ],
                 );
             }
 
             return $result;
-        } catch (Throwable $e) {
-            throw $e;
         } finally {
             BlameContext::clear();
         }
@@ -109,6 +164,7 @@ class OutboxMaintenanceService
      *
      * @param  array{
      *     stuck_minutes?: int,
+     *     batch_size?: int,
      *     dry_run?: bool
      * }  $options
      * @return array{
@@ -118,6 +174,7 @@ class OutboxMaintenanceService
     public function reap(array $options = []): array
     {
         $stuckMinutes = $options['stuck_minutes'] ?? 10;
+        $batchSize = max(1, (int) ($options['batch_size'] ?? 1000));
         $dryRun = $options['dry_run'] ?? false;
 
         $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
@@ -137,19 +194,33 @@ class OutboxMaintenanceService
                 ];
             }
 
-            /** @var int $reapedCount */
-            $reapedCount = DB::transaction(function () use ($now, $stuckThreshold): int {
-                return OutboxMessage::query()
+            // Batch updates in short transactions to prevent long-running table locks
+            $totalReaped = 0;
+            do {
+                $stuckIds = OutboxMessage::query()
                     ->where('status', OutboxStatus::Publishing->value)
                     ->where('updated_at', '<=', $stuckThreshold)
-                    ->update([
-                        'status' => OutboxStatus::Pending->value,
-                        'available_at' => $now,
-                        'updated_at' => $now,
-                    ]);
-            });
+                    ->limit($batchSize)
+                    ->pluck('id');
 
-            if ($reapedCount > 0) {
+                if ($stuckIds->isEmpty()) {
+                    break;
+                }
+
+                $updated = DB::transaction(function () use ($stuckIds, $now): int {
+                    return OutboxMessage::query()
+                        ->whereIn('id', $stuckIds)
+                        ->update([
+                            'status' => OutboxStatus::Pending->value,
+                            'available_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                });
+
+                $totalReaped += $updated;
+            } while ($stuckIds->count() >= $batchSize);
+
+            if ($totalReaped > 0) {
                 $this->auditService->record(
                     eventType: AuditEventType::SystemReconciliationExecuted,
                     userId: null,
@@ -157,17 +228,16 @@ class OutboxMaintenanceService
                     sessionId: null,
                     metadata: [
                         'action' => 'outbox:reap',
-                        'reaped_messages' => $reapedCount,
+                        'reaped_messages' => $totalReaped,
                         'stuck_minutes' => $stuckMinutes,
+                        'batch_size' => $batchSize,
                     ],
                 );
             }
 
             return [
-                'reaped_messages' => $reapedCount,
+                'reaped_messages' => $totalReaped,
             ];
-        } catch (Throwable $e) {
-            throw $e;
         } finally {
             BlameContext::clear();
         }

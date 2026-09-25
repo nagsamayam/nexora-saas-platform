@@ -17,6 +17,7 @@ class PruneOutboxMessagesCommand extends Command
     protected $signature = 'outbox:prune
                             {--published-days=7 : Number of days to retain published outbox messages before pruning}
                             {--failed-days=30 : Number of days to retain failed outbox messages before pruning}
+                            {--batch-size=1000 : Number of messages to delete per batch transaction}
                             {--dry-run : Simulate pruning without deleting records}';
 
     /**
@@ -33,18 +34,21 @@ class PruneOutboxMessagesCommand extends Command
     {
         $publishedDays = (int) $this->option('published-days');
         $failedDays = (int) $this->option('failed-days');
+        $batchSize = max(1, (int) $this->option('batch-size'));
         $dryRun = (bool) $this->option('dry-run');
 
         $this->info(sprintf(
-            'Starting outbox pruning (published_days: %d, failed_days: %d, dry_run: %s)...',
+            'Starting outbox pruning (published_days: %d, failed_days: %d, batch_size: %d, dry_run: %s)...',
             $publishedDays,
             $failedDays,
+            $batchSize,
             $dryRun ? 'yes' : 'no'
         ));
 
         $result = $service->prune([
             'published_retention_days' => $publishedDays,
             'failed_retention_days' => $failedDays,
+            'batch_size' => $batchSize,
             'dry_run' => $dryRun,
         ]);
 

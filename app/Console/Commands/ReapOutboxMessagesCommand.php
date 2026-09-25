@@ -16,6 +16,7 @@ class ReapOutboxMessagesCommand extends Command
      */
     protected $signature = 'outbox:reap
                             {--stuck-minutes=10 : Minutes an in-flight publishing outbox message is allowed before considered stuck/orphaned}
+                            {--batch-size=1000 : Number of messages to recover per batch transaction}
                             {--dry-run : Simulate reaping without modifying records}';
 
     /**
@@ -31,16 +32,19 @@ class ReapOutboxMessagesCommand extends Command
     public function handle(OutboxMaintenanceService $service): int
     {
         $stuckMinutes = (int) $this->option('stuck-minutes');
+        $batchSize = max(1, (int) $this->option('batch-size'));
         $dryRun = (bool) $this->option('dry-run');
 
         $this->info(sprintf(
-            'Starting outbox reaper (stuck_minutes: %d, dry_run: %s)...',
+            'Starting outbox reaper (stuck_minutes: %d, batch_size: %d, dry_run: %s)...',
             $stuckMinutes,
+            $batchSize,
             $dryRun ? 'yes' : 'no'
         ));
 
         $result = $service->reap([
             'stuck_minutes' => $stuckMinutes,
+            'batch_size' => $batchSize,
             'dry_run' => $dryRun,
         ]);
 

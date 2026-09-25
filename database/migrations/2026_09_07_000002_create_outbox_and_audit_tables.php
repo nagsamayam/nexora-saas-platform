@@ -37,6 +37,7 @@ return new class extends Migration
         DB::statement('CREATE INDEX outbox_messages_aggregate_index ON outbox_messages (aggregate_type, aggregate_id);');
         DB::statement('CREATE INDEX outbox_messages_correlation_id_index ON outbox_messages (correlation_id) WHERE correlation_id IS NOT NULL;');
         DB::statement('CREATE UNIQUE INDEX outbox_messages_event_key_unique ON outbox_messages (event_key) WHERE event_key IS NOT NULL;');
+        DB::statement('CREATE INDEX outbox_messages_status_published_at_index ON outbox_messages (status, published_at);');
 
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->uuid('id')->primary();

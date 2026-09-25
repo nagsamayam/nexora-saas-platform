@@ -149,6 +149,7 @@ test('outbox:prune prunes old published and dead-letter messages', function () {
         'status' => OutboxStatus::Published,
     ]);
     DB::table('outbox_messages')->where('id', $oldPublished->id)->update([
+        'published_at' => $now->subDays(10),
         'created_at' => $now->subDays(10),
         'updated_at' => $now->subDays(10),
     ]);
@@ -163,6 +164,7 @@ test('outbox:prune prunes old published and dead-letter messages', function () {
         'status' => OutboxStatus::Published,
     ]);
     DB::table('outbox_messages')->where('id', $recentPublished->id)->update([
+        'published_at' => $now->subDays(2),
         'created_at' => $now->subDays(2),
         'updated_at' => $now->subDays(2),
     ]);
@@ -189,8 +191,8 @@ test('outbox:prune prunes old published and dead-letter messages', function () {
     expect(OutboxMessage::find($oldPublished->id))->not->toBeNull()
         ->and(OutboxMessage::find($oldFailed->id))->not->toBeNull();
 
-    // Run pruning
-    $this->artisan('outbox:prune', ['--published-days' => 7, '--failed-days' => 30])
+    // Run batch pruning with small batch size
+    $this->artisan('outbox:prune', ['--published-days' => 7, '--failed-days' => 30, '--batch-size' => 1])
         ->expectsOutputToContain('Outbox pruning completed successfully.')
         ->assertSuccessful();
 
@@ -246,8 +248,8 @@ test('outbox:reap recovers stuck publishing messages back to pending', function 
 
     expect($stuckMessage->fresh()->status)->toBe(OutboxStatus::Publishing);
 
-    // Live reap
-    $this->artisan('outbox:reap', ['--stuck-minutes' => 10])
+    // Live reap with small batch size
+    $this->artisan('outbox:reap', ['--stuck-minutes' => 10, '--batch-size' => 1])
         ->expectsOutputToContain('Outbox reaper completed successfully.')
         ->assertSuccessful();
 
