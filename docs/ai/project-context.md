@@ -1296,7 +1296,7 @@ The authentication module is complete when:
 
 ### System Maintenance & Self-Healing Reconciliation
 * **Token & Session Cleanup**: `php artisan auth:cleanup-tokens` marks past-due tokens/sessions as `expired` and prunes terminal-state records older than retention threshold.
-* **System Reconciliation Loop**: `php artisan system:reconcile` (scheduled hourly) resolves token-session state drift, bulk-revokes sessions/tokens for deactivated users, and recovers stuck provisioning tenants using `BlameContext::SYSTEM_ACTOR_ID` (`00000000-0000-0000-0000-000000000000`).
+* **System Reconciliation Loop**: `php artisan system:reconcile` (scheduled hourly) resolves token-session state drift, bulk-revokes sessions/tokens for deactivated users, and recovers stuck provisioning tenants using batch processing, short transactions, and `BlameContext::SYSTEM_ACTOR_ID` (`00000000-0000-0000-0000-000000000000`).
 
 ### Authentication Guard Driver & HTTP Client
 * **Laravel `auth:api` Integration**: `App\Infrastructure\Jwt\JwtGuard` extends `Illuminate\Contracts\Auth\Guard` and is registered via `Auth::extend('jwt', ...)` in `AppServiceProvider`, allowing standard `middleware('auth:api')` routing.

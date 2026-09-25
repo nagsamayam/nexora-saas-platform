@@ -16,6 +16,7 @@ class SystemReconcileCommand extends Command
      */
     protected $signature = 'system:reconcile
                             {--stuck-provisioning-minutes=30 : Minutes a tenant can remain in provisioning state before triggering recovery}
+                            {--batch-size=1000 : Number of records to process per batch transaction}
                             {--no-auto-recover : Skip auto-dispatching provisioning jobs for stuck tenants}
                             {--dry-run : Simulate reconciliation without modifying database state or dispatching jobs}';
 
@@ -32,18 +33,21 @@ class SystemReconcileCommand extends Command
     public function handle(SystemReconciliationService $service): int
     {
         $stuckMinutes = (int) $this->option('stuck-provisioning-minutes');
+        $batchSize = max(1, (int) $this->option('batch-size'));
         $autoRecover = ! ((bool) $this->option('no-auto-recover'));
         $dryRun = (bool) $this->option('dry-run');
 
         $this->info(sprintf(
-            'Starting system reconciliation (stuck_minutes: %d, auto_recover: %s, dry_run: %s)...',
+            'Starting system reconciliation (stuck_minutes: %d, batch_size: %d, auto_recover: %s, dry_run: %s)...',
             $stuckMinutes,
+            $batchSize,
             $autoRecover ? 'yes' : 'no',
             $dryRun ? 'yes' : 'no'
         ));
 
         $result = $service->execute([
             'stuck_provisioning_minutes' => $stuckMinutes,
+            'batch_size' => $batchSize,
             'auto_recover_tenants' => $autoRecover,
             'dry_run' => $dryRun,
         ]);

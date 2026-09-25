@@ -46,7 +46,7 @@ Milestone 5 — System Maintenance & Reconciliation [Completed]
 
 - Automated token & session cleanup (`php artisan auth:cleanup-tokens`)
 - Outbox message pruning & stuck publisher reaping (`php artisan outbox:prune`, `php artisan outbox:reap`) with batch deletion, `published_at` indexing, and short transactions
-- Automated self-healing system reconciliation (`php artisan system:reconcile`) with `BlameContext::SYSTEM_ACTOR_ID`
+- Automated self-healing system reconciliation (`php artisan system:reconcile`) with batch processing, bounded transactions, and `BlameContext::SYSTEM_ACTOR_ID`
 - Laravel native `auth:api` custom JWT Guard driver (`JwtGuard`) registered in `config/auth.php` and `AppServiceProvider`
 - PhpStorm environment-based HTTP client test suite (`requests/*.http`, `http-client.env.json`)
 - Dynamic timezone resolution from `config('app.timezone')`

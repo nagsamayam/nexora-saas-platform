@@ -30,6 +30,7 @@ class SystemReconciliationService
      * @param  array{
      *     stuck_provisioning_minutes?: int,
      *     auto_recover_tenants?: bool,
+     *     batch_size?: int,
      *     dry_run?: bool
      * }  $options
      * @return array{
@@ -44,6 +45,7 @@ class SystemReconciliationService
     {
         $stuckProvisioningMinutes = $options['stuck_provisioning_minutes'] ?? 30;
         $autoRecoverTenants = $options['auto_recover_tenants'] ?? true;
+        $batchSize = max(1, (int) ($options['batch_size'] ?? 1000));
         $dryRun = $options['dry_run'] ?? false;
 
         $now = CarbonImmutable::now((string) config('app.timezone', 'UTC'));
@@ -105,9 +107,9 @@ class SystemReconciliationService
                 ];
             }
 
-            /** @var array{inconsistent_tokens_revoked: int, deactivated_user_sessions_revoked: int, deactivated_user_tokens_revoked: int} $dbResult */
-            $dbResult = DB::transaction(function () use ($now): array {
-                // 1. Revoke active tokens attached to inactive sessions
+            // 1. Revoke active tokens attached to inactive sessions in bounded batches
+            $totalInconsistentTokensRevoked = 0;
+            do {
                 $inconsistentTokenIds = AuthRefreshToken::query()
                     ->where('status', RefreshTokenStatus::Active->value)
                     ->whereHas('session', function ($query): void {
@@ -116,61 +118,96 @@ class SystemReconciliationService
                             SessionStatus::Expired->value,
                         ]);
                     })
+                    ->limit($batchSize)
                     ->pluck('id');
 
-                $inconsistentTokensRevoked = 0;
-                if ($inconsistentTokenIds->isNotEmpty()) {
-                    $inconsistentTokensRevoked = AuthRefreshToken::query()
+                if ($inconsistentTokenIds->isEmpty()) {
+                    break;
+                }
+
+                $revokedCount = DB::transaction(function () use ($inconsistentTokenIds, $now): int {
+                    return AuthRefreshToken::query()
                         ->whereIn('id', $inconsistentTokenIds)
                         ->update([
                             'status' => RefreshTokenStatus::Revoked->value,
                             'revoked_at' => $now,
                             'updated_at' => $now,
                         ]);
-                }
+                });
 
-                // 2. Revoke active sessions & tokens for suspended/disabled users
-                $deactivatedUserIds = User::query()
-                    ->whereIn('status', [
-                        UserStatus::Suspended->value,
-                        UserStatus::Disabled->value,
-                    ])
-                    ->pluck('id');
+                $totalInconsistentTokensRevoked += $revokedCount;
+            } while ($inconsistentTokenIds->count() >= $batchSize);
 
-                $deactivatedSessionsRevoked = 0;
-                $deactivatedTokensRevoked = 0;
+            // 2. Revoke active sessions & tokens for suspended/disabled users in bounded batches
+            $totalDeactivatedSessionsRevoked = 0;
+            $totalDeactivatedTokensRevoked = 0;
 
-                if ($deactivatedUserIds->isNotEmpty()) {
-                    $deactivatedTokensRevoked = AuthRefreshToken::query()
+            $deactivatedUserIds = User::query()
+                ->whereIn('status', [
+                    UserStatus::Suspended->value,
+                    UserStatus::Disabled->value,
+                ])
+                ->pluck('id');
+
+            if ($deactivatedUserIds->isNotEmpty()) {
+                // Batch revoke tokens for deactivated users
+                do {
+                    $deactivatedTokenIds = AuthRefreshToken::query()
                         ->where('status', RefreshTokenStatus::Active->value)
                         ->whereHas('session', function ($query) use ($deactivatedUserIds): void {
                             $query->whereIn('user_id', $deactivatedUserIds);
                         })
-                        ->update([
-                            'status' => RefreshTokenStatus::Revoked->value,
-                            'revoked_at' => $now,
-                            'updated_at' => $now,
-                        ]);
+                        ->limit($batchSize)
+                        ->pluck('id');
 
-                    $deactivatedSessionsRevoked = AuthSession::query()
+                    if ($deactivatedTokenIds->isEmpty()) {
+                        break;
+                    }
+
+                    $revokedTokensCount = DB::transaction(function () use ($deactivatedTokenIds, $now): int {
+                        return AuthRefreshToken::query()
+                            ->whereIn('id', $deactivatedTokenIds)
+                            ->update([
+                                'status' => RefreshTokenStatus::Revoked->value,
+                                'revoked_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                    });
+
+                    $totalDeactivatedTokensRevoked += $revokedTokensCount;
+                } while ($deactivatedTokenIds->count() >= $batchSize);
+
+                // Batch revoke sessions for deactivated users
+                do {
+                    $deactivatedSessionIds = AuthSession::query()
                         ->whereIn('user_id', $deactivatedUserIds)
                         ->where('status', SessionStatus::Active->value)
-                        ->update([
-                            'status' => SessionStatus::Revoked->value,
-                            'revoked_at' => $now,
-                            'updated_at' => $now,
-                        ]);
-                }
+                        ->limit($batchSize)
+                        ->pluck('id');
 
-                return [
-                    'inconsistent_tokens_revoked' => $inconsistentTokensRevoked,
-                    'deactivated_user_sessions_revoked' => $deactivatedSessionsRevoked,
-                    'deactivated_user_tokens_revoked' => $deactivatedTokensRevoked,
-                ];
-            });
+                    if ($deactivatedSessionIds->isEmpty()) {
+                        break;
+                    }
 
-            // 3. Reconcile stuck provisioning tenants
-            $stuckTenants = Tenant::query()
+                    $revokedSessionsCount = DB::transaction(function () use ($deactivatedSessionIds, $now): int {
+                        return AuthSession::query()
+                            ->whereIn('id', $deactivatedSessionIds)
+                            ->update([
+                                'status' => SessionStatus::Revoked->value,
+                                'revoked_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                    });
+
+                    $totalDeactivatedSessionsRevoked += $revokedSessionsCount;
+                } while ($deactivatedSessionIds->count() >= $batchSize);
+            }
+
+            // 3. Reconcile stuck provisioning tenants in batches
+            $stuckTenantsDetected = 0;
+            $stuckTenantsRecovered = 0;
+
+            Tenant::query()
                 ->where('status', TenantStatus::Provisioning->value)
                 ->where(function ($query) use ($provisioningThreshold): void {
                     $query->where('provisioning_started_at', '<=', $provisioningThreshold)
@@ -179,27 +216,26 @@ class SystemReconciliationService
                                 ->where('updated_at', '<=', $provisioningThreshold);
                         });
                 })
-                ->get();
+                ->chunkById($batchSize, function ($stuckTenants) use ($autoRecoverTenants, &$stuckTenantsDetected, &$stuckTenantsRecovered): void {
+                    $stuckTenantsDetected += $stuckTenants->count();
 
-            $stuckTenantsDetected = $stuckTenants->count();
-            $stuckTenantsRecovered = 0;
-
-            if ($autoRecoverTenants && $stuckTenants->isNotEmpty()) {
-                foreach ($stuckTenants as $tenant) {
-                    ProvisionTenantJob::dispatch(
-                        tenantId: (string) $tenant->id,
-                        actorId: BlameContext::SYSTEM_ACTOR_ID,
-                        options: ['source' => 'system_reconciliation'],
-                        correlationId: BlameContext::getCorrelationId(),
-                    );
-                    $stuckTenantsRecovered++;
-                }
-            }
+                    if ($autoRecoverTenants) {
+                        foreach ($stuckTenants as $tenant) {
+                            ProvisionTenantJob::dispatch(
+                                tenantId: (string) $tenant->id,
+                                actorId: BlameContext::SYSTEM_ACTOR_ID,
+                                options: ['source' => 'system_reconciliation'],
+                                correlationId: BlameContext::getCorrelationId(),
+                            );
+                            $stuckTenantsRecovered++;
+                        }
+                    }
+                });
 
             $summary = [
-                'inconsistent_tokens_revoked' => $dbResult['inconsistent_tokens_revoked'],
-                'deactivated_user_sessions_revoked' => $dbResult['deactivated_user_sessions_revoked'],
-                'deactivated_user_tokens_revoked' => $dbResult['deactivated_user_tokens_revoked'],
+                'inconsistent_tokens_revoked' => $totalInconsistentTokensRevoked,
+                'deactivated_user_sessions_revoked' => $totalDeactivatedSessionsRevoked,
+                'deactivated_user_tokens_revoked' => $totalDeactivatedTokensRevoked,
                 'stuck_tenants_detected' => $stuckTenantsDetected,
                 'stuck_tenants_recovered' => $stuckTenantsRecovered,
             ];

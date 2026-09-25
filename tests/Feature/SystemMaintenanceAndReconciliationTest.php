@@ -333,8 +333,8 @@ test('system:reconcile synchronizes tokens, deactivated users, and recovers stuc
     expect($inconsistentToken->fresh()->status)->toBe(RefreshTokenStatus::Active)
         ->and($suspendedUserSession->fresh()->status)->toBe(SessionStatus::Active);
 
-    // Live run
-    $this->artisan('system:reconcile', ['--stuck-provisioning-minutes' => 30])
+    // Live run with small batch size
+    $this->artisan('system:reconcile', ['--stuck-provisioning-minutes' => 30, '--batch-size' => 1])
         ->expectsOutputToContain('System reconciliation completed successfully.')
         ->assertSuccessful();
 
